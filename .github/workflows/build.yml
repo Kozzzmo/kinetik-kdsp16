@@ -19,7 +19,20 @@ jobs:
           for b in bin/*.vst3 bin/*.component bin/*.clap; do
             [ -e "$b" ] && codesign --force --deep --sign - "$b"
           done
-          lipo -info bin/KinetikKDSP16.vst3/Contents/MacOS/KinetikKDSP16
+          echo "::notice title=architectures::$(lipo -archs bin/KinetikKDSP16.vst3/Contents/MacOS/KinetikKDSP16)"
+      - name: Validate the Audio Unit (auval)
+        continue-on-error: true
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R bin/KinetikKDSP16.component ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          sleep 2
+          auval -a | grep -i kinetik || true
+          if auval -v aumu KD16 Kntk > auval.txt 2>&1; then
+            echo "::notice title=auval::AU VALIDATION SUCCEEDED"
+          else
+            echo "::warning title=auval::$(tail -5 auval.txt | tr '\n' ' ')"
+          fi
       - name: Package
         run: |
           mkdir -p pkg
