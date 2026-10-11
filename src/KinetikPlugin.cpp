@@ -41,7 +41,7 @@ protected:
     const char* getLabel() const override { return "KinetikKDSP16"; }
     const char* getDescription() const override { return "16-track drum synthesizer with step sequencer and parameter locks"; }
     const char* getMaker() const override { return "Kinetik"; }
-    const char* getLicense() const override { return "GPL-3.0"; }
+    const char* getLicense() const override { return "Proprietary"; }
     uint32_t getVersion() const override { return d_version(0, 1, 0); }
 
     void initParameter(uint32_t index, Parameter& p) override
