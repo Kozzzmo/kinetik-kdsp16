@@ -1,6 +1,7 @@
 // Kinetik KDSP-16 — DPF plugin glue
 #include "DistrhoPlugin.hpp"
 #include "Engine.hpp"
+#include "License.hpp"
 #include <atomic>
 #include <mutex>
 #include <memory>
@@ -35,6 +36,7 @@ public:
         engine->bank = *master;
         engine->init(getSampleRate());
         notes.reserve(256);
+        licensed.store(lic::findInstalled(kProductCode).valid);
     }
 
 protected:
@@ -160,7 +162,9 @@ protected:
                 const char* e = std::strchr(s, '\n');
                 const size_t len = e ? (size_t)(e - s) : std::strlen(s);
                 line.assign(s, len);
-                if (line.rfind("fill ", 0) == 0) {
+                if (line == "lic") {                    // the UI installed a licence: check again
+                    licensed.store(lic::findInstalled(kProductCode).valid);
+                } else if (line.rfind("fill ", 0) == 0) {
                     fillFlag.store(std::atoi(line.c_str() + 5) != 0);
                 } else if (line.rfind("aud ", 0) == 0) {
                     const int t = std::atoi(line.c_str() + 4);
@@ -251,6 +255,22 @@ protected:
             }
         }
         engine->process(outputs, frames, tp, notes.data(), (uint32_t)notes.size());
+        if (!licensed.load(std::memory_order_relaxed)) demoGate(outputs, frames);
+    }
+
+    // Demo mode (no licence installed): the sound drops out for 3 seconds every 45 seconds.
+    void demoGate(float** outputs, uint32_t frames)
+    {
+        const double sr = getSampleRate();
+        const uint64_t period = (uint64_t)(45.0 * sr), mute = (uint64_t)(3.0 * sr);
+        const float coef = 1.f - std::exp(-1.f / (0.01f * (float)sr));
+        for (uint32_t i = 0; i < frames; ++i) {
+            const float target = (demoPos % period) >= period - mute ? 0.f : 1.f;
+            demoGain += (target - demoGain) * coef;
+            ++demoPos;
+            if (demoGain < 0.9999f)
+                for (uint32_t c = 0; c < DISTRHO_PLUGIN_NUM_OUTPUTS; ++c) outputs[c][i] *= demoGain;
+        }
     }
 
 private:
@@ -260,6 +280,9 @@ private:
     std::atomic<uint32_t> dirty{0};
     std::atomic<uint32_t> auditionMask{0};
     std::atomic<bool> fillFlag{false};
+    std::atomic<bool> licensed{false};
+    uint64_t demoPos = 0; float demoGain = 1.f;
+    static constexpr const char* kProductCode = "KDSP-16";
     String skinState;
     std::vector<NoteEvent> notes;
 
