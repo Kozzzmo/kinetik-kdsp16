@@ -1,0 +1,70 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch and patch DPF
+        run: ./scripts/setup.sh
+      - name: Build (universal: Apple Silicon + Intel)
+        run: make universal -j4
+      - name: Ad-hoc code signing
+        run: |
+          for b in bin/*.vst3 bin/*.component bin/*.clap; do
+            [ -e "$b" ] && codesign --force --deep --sign - "$b"
+          done
+          lipo -info bin/KinetikKDSP16.vst3/Contents/MacOS/KinetikKDSP16
+      - name: Package
+        run: |
+          mkdir -p pkg
+          cp -R bin/*.vst3 bin/*.component bin/*.clap pkg/ 2>/dev/null || true
+          cp README.md pkg/
+          cd pkg && zip -qry ../Kinetik-KDSP16-macOS.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Kinetik-KDSP16-macOS
+          path: Kinetik-KDSP16-macOS.zip
+
+  windows:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MinGW
+        run: sudo apt-get update && sudo apt-get install -y mingw-w64
+      - name: Fetch and patch DPF
+        run: ./scripts/setup.sh
+      - name: Build (Windows x64)
+        run: make -j4 WINDOWS=true CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
+      - name: Package
+        run: |
+          mkdir -p pkg && cp -R bin/*.vst3 bin/*.clap pkg/ && cp README.md pkg/
+          cd pkg && zip -qry ../Kinetik-KDSP16-Windows.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Kinetik-KDSP16-Windows
+          path: Kinetik-KDSP16-Windows.zip
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libdbus-1-dev libjack-jackd2-dev pkg-config
+      - name: Fetch and patch DPF
+        run: ./scripts/setup.sh
+      - name: Build
+        run: make -j4
+      - name: Package
+        run: |
+          mkdir -p pkg && cp -R bin/*.vst3 bin/*.clap pkg/ && cp README.md pkg/
+          cd pkg && zip -qry ../Kinetik-KDSP16-Linux.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Kinetik-KDSP16-Linux
+          path: Kinetik-KDSP16-Linux.zip
