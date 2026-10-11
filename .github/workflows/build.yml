@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Fetch and patch DPF
         run: ./scripts/setup.sh
-      - name: Build (universal: Apple Silicon + Intel)
+      - name: "Build (universal: Apple Silicon + Intel)"
         run: make universal -j4
       - name: Ad-hoc code signing
         run: |
