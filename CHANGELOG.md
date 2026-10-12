@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1
+
+- Beta test: demo mode switched off (no silences, no licence needed). It comes back for the commercial release
+  (`kDemoModeEnabled` in `src/License.hpp`).
+
 ## 0.7
 
 - **Readable names**: machines (KICK, SNARE, TOM, CLAP, RIM, COWBELL, CL HAT, OP HAT, CYMBAL, SHAKER, CLAVE,
