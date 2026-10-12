@@ -2,6 +2,7 @@
 #pragma once
 #include "Bank.hpp"
 #include "Voice.hpp"
+#include "MasterFx.hpp"
 #include <vector>
 #include <algorithm>
 #include <climits>
@@ -40,7 +41,7 @@ struct Track {
     // fx
     float amPh = 0;
     Biquad eq; float eqDb = 0;
-    Svf hp, lp; bool hpOn = false, lpOn = false;
+    Svf hp, lp, lp2; bool hpOn = false, lpOn = false; int ftype = 0; float bpGain = 1.f;
     int srrN = 1, srrCnt = 0; float srrHold = 0;
     float vol = 0, panL = 0.707f, panR = 0.707f, del = 0, rev = 0; // targets
     float cVol = 0, cPanL = 0.707f, cPanR = 0.707f, cDel = 0, cRev = 0; // current (smoothed)
@@ -84,7 +85,7 @@ public:
         for (int t = 0; t < kTracks; ++t)
             for (int p = 0; p < kTrackParams; ++p) trackParam[t][p] = trackParamDefault(t, p);
         for (int g = 0; g < kGlobalParams; ++g) global[g] = 0;
-        for (int i = 0; i < 20; ++i) global[gECHO_TIME + i] = kMasterDefaults[i];
+        for (int i = 0; i < kMasterCount; ++i) global[gECHO_TIME + i] = kMasterDefaults[i];
         global[gTEMPO] = 120;
         bank.initDefault();
     }
@@ -94,30 +95,18 @@ public:
         sr = (float)sampleRate;
         for (auto& tr : tracks) tr.init(sr);
         for (int t = 0; t < kTracks; ++t) { tracks[t].voice.machine = -1; tracks[t].voice.setMachine(bank.machine[t]); }
-        const size_t echoLen = (size_t)(sr * 4.2f) + 8;
-        echoL.assign(echoLen, 0.f); echoR.assign(echoLen, 0.f);
-        static const float revMs[8] = {29.7f, 37.1f, 41.1f, 43.7f, 53.3f, 59.9f, 67.7f, 73.1f};
-        for (int i = 0; i < 8; ++i) {
-            revLen[i] = (int)(revMs[i] * 0.001f * sr * 1.3f);
-            revLine[i].assign(revLen[i] + 2, 0.f);
-            revPos[i] = 0; revLp[i] = 0;
-        }
-        preBuf.assign((size_t)(sr * 0.25f) + 4, 0.f);
+        fx.init(sr);
         sendDL.assign(64, 0); sendDR.assign(64, 0); sendRL.assign(64, 0); sendRR.assign(64, 0);
         for (int b = 0; b < kOutBuses; ++b) { busL[b].assign(64, 0); busR[b].assign(64, 0); }
         events.reserve(4096);
-        echoW = 0; preW = 0;
         reset();
     }
 
     void reset()
     {
         for (auto& tr : tracks) { tr.voice.active = false; tr.choking = false; tr.chokeEnv = 1.f; }
-        std::fill(echoL.begin(), echoL.end(), 0.f); std::fill(echoR.begin(), echoR.end(), 0.f);
-        for (int i = 0; i < 8; ++i) std::fill(revLine[i].begin(), revLine[i].end(), 0.f);
-        std::fill(preBuf.begin(), preBuf.end(), 0.f);
+        fx.reset();
         wasPlaying = false; internalBeat = 0; prevPlayParam = false; usingInternal = false;
-        cmpEnv = 0;
     }
 
     void audition(int track, float vel = 1.f) { if (track >= 0 && track < kTracks) pendingAudition[track] = vel; }
@@ -161,6 +150,8 @@ public:
         prevPlayParam = playParam;
         const double beatsPerFrame = bpm / (60.0 * sr);
         const double b1 = b0 + beatsPerFrame * frames;
+        blockBpf = beatsPerFrame;
+        if (playing) lfoClock = b0;     // synced LFOs follow the song position; stopped, they keep the tempo
         if (!playing) {
             wasPlaying = false; usingInternal = false; outStep = -1;
             curPattern = clampi((int)global[gPATTERN], 0, kPatterns - 1);
@@ -267,11 +258,8 @@ private:
     Rng condRng;
 
     // master
-    std::vector<float> echoL, echoR; uint32_t echoW = 0; float echoDelay = 1000, echoLpL = 0, echoLpR = 0, echoHpL = 0, echoHpR = 0;
-    std::vector<float> revLine[8]; int revLen[8] = {}; int revPos[8] = {}; float revLp[8] = {};
-    std::vector<float> preBuf; uint32_t preW = 0; float revHpZ = 0, gateEnv = 0, gateGain = 1; uint32_t gateHold = 0;
-    Biquad eqLowL, eqLowR, eqHighL, eqHighR;
-    float cmpEnv = 0;
+    MasterFx fx;
+    double lfoClock = 0, blockBpf = 0;   // beat position used by tempo-synced LFOs
     std::vector<float> sendDL, sendDR, sendRL, sendRR;
     std::vector<float> busL[kOutBuses], busR[kOutBuses];
 
@@ -374,7 +362,8 @@ private:
     {
         Track& tr = tracks[t];
         const int shp = lfoShapeIndex((int)effParam(t, kLfoBase[l] + 2));
-        const float ph = tr.lfoPh[l];
+        float ph = tr.lfoPh[l] + effParam(t, lfoParam(l, 7)) / 128.f;
+        if (ph >= 1.f) ph -= 1.f;
         switch (shp) {
         case 0: return 1.f - 4.f * std::fabs(ph - 0.5f);
         case 1: return std::sin(kTwoPi * ph);
@@ -405,12 +394,24 @@ private:
             Track& tr = tracks[t];
             for (int l = 0; l < 2; ++l) {
                 const int b = kLfoBase[l];
-                const float hz = expmap(effParam(t, b) / 127.f, 0.03f, 30.f);
-                tr.lfoPh[l] += hz * n / sr;
-                while (tr.lfoPh[l] >= 1.f) { tr.lfoPh[l] -= 1.f; tr.lfoRnd[l] = tr.voice.rng.next(); }
+                const int type = lfoTypeIndex((int)effParam(t, b + 3));
+                if (lfoSynced(effParam(t, lfoParam(l, 6)))) {
+                    const double cyc = kLfoSyncBeats[lfoSyncDivIndex((int)effParam(t, b))];
+                    if (type == 0) {
+                        // FREE + SYNC: locked to the song position
+                        const double ph = lfoClock / cyc - std::floor(lfoClock / cyc);
+                        if ((float)ph < tr.lfoPh[l]) tr.lfoRnd[l] = tr.voice.rng.next();
+                        tr.lfoPh[l] = (float)ph;
+                    } else {
+                        tr.lfoPh[l] += (float)(blockBpf * n / cyc);
+                        while (tr.lfoPh[l] >= 1.f) { tr.lfoPh[l] -= 1.f; tr.lfoRnd[l] = tr.voice.rng.next(); }
+                    }
+                } else {
+                    tr.lfoPh[l] += lfoFreeHz(effParam(t, b)) * n / sr;
+                    while (tr.lfoPh[l] >= 1.f) { tr.lfoPh[l] -= 1.f; tr.lfoRnd[l] = tr.voice.rng.next(); }
+                }
                 const float dep = effParam(t, b + 1);
                 if (dep < 0.5f) continue;
-                const int type = lfoTypeIndex((int)effParam(t, b + 3));
                 const float out = type == 2 ? tr.lfoHeld[l] : lfoShape(t, l);
                 tr.lfoOut[l] = out;
                 const int dst = std::min(kLfoDests - 1, lfoDestIndex((int)effParam(t, b + 4)));
@@ -437,20 +438,23 @@ private:
         tr.fenv *= std::pow(decayCoef(expmap(e[tpFDEC] / 127.f, 0.005f, 3.f), sr), (float)n);
         const float envOct = (e[tpFENV] - 64.f) / 64.f * 6.f * tr.fenv;
         const float envMul = std::fabs(envOct) > 0.001f ? std::exp2(envOct) : 1.f;
-        const float q = 0.5f + e[tpFLTQ] / 127.f * 12.f;
-        const float base = e[tpFLTF] / 127.f;
-        const float top = std::min(1.f, (e[tpFLTF] + e[tpFLTW]) / 127.f);
-        tr.hpOn = base > 0.005f;
-        if (tr.hpOn) tr.hp.setup(expmap(base, 20.f, 20000.f) * envMul, q, sr);
-        tr.lpOn = top < 0.995f || q > 0.6f || envMul < 0.999f;
-        if (tr.lpOn) tr.lp.setup(std::min(20000.f, expmap(top, 20.f, 20000.f) * envMul), q, sr);
+        const float q = 0.5f + e[tpRESO] / 127.f * 12.f;
+        const float cutHz = std::min(20000.f, cutoffHz(e[tpCUTOFF]) * envMul);
+        tr.ftype = filterTypeIndex((int)e[tpFTYPE]);
+        tr.hpOn = false;
+        tr.lpOn = tr.ftype != 0 || cutHz < 19000.f || q > 0.6f;
+        if (tr.lpOn) {
+            tr.lp.setup(cutHz, q, sr);
+            if (tr.ftype == 1) tr.lp2.setup(cutHz, 0.6f, sr);
+            tr.bpGain = std::sqrt(tr.lp.k) * 1.4f;
+        }
         tr.srrN = e[tpSRR] > 0.5f ? (int)expmap(e[tpSRR] / 127.f, 1.f, 64.f) : 1;
         tr.dist = e[tpDIST] / 127.f;
         const float v = e[tpVOL] / 127.f;
         tr.vol = bank.mute[t] ? 0.f : v * v * 0.8f; // mute silences the track at once
         const float pan = e[tpPAN] / 127.f;
         tr.panL = std::cos(pan * kPi * 0.5f); tr.panR = std::sin(pan * kPi * 0.5f);
-        tr.del = e[tpDEL] / 127.f; tr.rev = e[tpREV] / 127.f;
+        tr.del = e[tpDEL] / 127.f * 1.4f; tr.rev = e[tpREV] / 127.f * 1.4f;   // sends go above unity
     }
 
     void renderSegment(float* const* outs, uint32_t n)
@@ -459,6 +463,7 @@ private:
         std::fill(sendDL.begin(), sendDL.begin() + n, 0.f); std::fill(sendDR.begin(), sendDR.begin() + n, 0.f);
         std::fill(sendRL.begin(), sendRL.begin() + n, 0.f); std::fill(sendRR.begin(), sendRR.begin() + n, 0.f);
         runLfos(n);
+        lfoClock += blockBpf * n;
         const float inv = 1.f / n;
         const float chokeCoef = decayCoef(0.012f, sr);
         for (int t = 0; t < kTracks; ++t) {
@@ -487,7 +492,16 @@ private:
                 }
                 if (eqOn) s = tr.eq.tick(s);
                 if (tr.hpOn) { tr.hp.tick(s); s = tr.hp.hp; }
-                if (tr.lpOn) { tr.lp.tick(s); s = tr.lp.lp; }
+                if (tr.lpOn) {
+                    tr.lp.tick(s);
+                    switch (tr.ftype) {
+                    case 0: s = tr.lp.lp; break;
+                    case 1: tr.lp2.tick(tr.lp.lp); s = tr.lp2.lp; break;
+                    case 2: s = tr.lp.bp * tr.bpGain; break;
+                    case 3: s = tr.lp.hp; break;
+                    default: s = tr.lp.lp + tr.lp.hp; break;
+                    }
+                }
                 if (tr.srrN > 1) { if (--tr.srrCnt <= 0) { tr.srrCnt = tr.srrN; tr.srrHold = s; } s = tr.srrHold; }
                 tr.cVol += dVol; tr.cPanL += dPL; tr.cPanR += dPR; tr.cDel += dDel; tr.cRev += dRev;
                 s *= tr.cVol;
@@ -497,119 +511,14 @@ private:
                 sendRL[i] += l * tr.cRev; sendRR[i] += r * tr.cRev;
             }
         }
-        masterFx(outs[0], outs[1], n);
+        fx.process(global, (float)curBpm, busL[0].data(), busR[0].data(), sendDL.data(), sendDR.data(), sendRL.data(), sendRR.data(),
+                   outs[0], outs[1], n);
         const float mv = global[gVOLUME] / 127.f; const float vol = mv * mv * 1.2f;
         for (int b = 1; b < kOutBuses; ++b)
             for (uint32_t i = 0; i < n; ++i) { outs[2 * b][i] = safety(busL[b][i] * vol); outs[2 * b + 1][i] = safety(busR[b][i] * vol); }
     }
 
-    void masterFx(float* L, float* R, uint32_t n)
-    {
-        const float* g = global;
-        // ---- echo ----
-        const int div = echoDivIndex((int)g[gECHO_TIME]);
-        float targetDelay = (float)(kEchoBeats[div] * 60.0 / curBpm * sr);
-        targetDelay = clampf(targetDelay, 4.f, (float)echoL.size() - 4.f);
-        const float fb = std::min(1.02f, g[gECHO_FB] / 127.f * 1.05f);
-        const float lpA = std::exp(-kTwoPi * expmap(g[gECHO_LPF] / 127.f, 500.f, 20000.f) / sr);
-        const float hpA = std::exp(-kTwoPi * expmap(g[gECHO_HPF] / 127.f, 20.f, 3000.f) / sr);
-        const float w = g[gECHO_WIDTH] / 127.f;
-        const float eLev = g[gECHO_LEV] / 127.f * 1.4f;
-        // ---- reverb ----
-        const float rt = expmap(g[gREV_SIZE] / 127.f, 0.2f, 10.f);
-        const float damp = 0.05f + g[gREV_DAMP] / 127.f * 0.85f;
-        const float rHpA = std::exp(-kTwoPi * expmap(g[gREV_HPF] / 127.f, 20.f, 2000.f) / sr);
-        const uint32_t psz = (uint32_t)preBuf.size();
-        const uint32_t pre = std::min<uint32_t>(psz - 1, (uint32_t)(g[gREV_PRE] / 127.f * 0.2f * sr));
-        const float rLev = g[gREV_LEV] / 127.f * 1.2f;
-        const bool gate = g[gREV_GATE] > 0.5f;
-        const uint32_t gateHoldS = (uint32_t)(expmap(g[gREV_GATE] / 127.f, 0.03f, 1.0f) * sr);
-        float revG[8];
-        for (int i = 0; i < 8; ++i) revG[i] = std::pow(10.f, -3.f * revLen[i] / (rt * sr));
-        // ---- master ----
-        eqLowL.setShelf(false, 120.f, (g[gEQ_LOW] - 64.f) / 64.f * 15.f, sr); copyCoef(eqLowR, eqLowL);
-        eqHighL.setShelf(true, 7000.f, (g[gEQ_HIGH] - 64.f) / 64.f * 15.f, sr); copyCoef(eqHighR, eqHighL);
-        const float thrDb = -40.f + g[gCMP_THR] / 127.f * 40.f;
-        const float ratio = 1.f + g[gCMP_RAT] / 127.f * 19.f;
-        const float atk = std::exp(-1.f / (expmap(g[gCMP_ATK] / 127.f, 0.0001f, 0.08f) * sr));
-        const float rel = std::exp(-1.f / (expmap(g[gCMP_REL] / 127.f, 0.02f, 1.0f) * sr));
-        const float makeup = std::pow(10.f, (-thrDb * (1.f - 1.f / ratio) * 0.4f) / 20.f);
-        const float drv = g[gDRIVE] / 127.f;
-        const float mv = g[gVOLUME] / 127.f; const float vol = mv * mv * 1.2f;
-        const uint32_t esz = (uint32_t)echoL.size();
-
-        for (uint32_t i = 0; i < n; ++i) {
-            // echo
-            echoDelay += (targetDelay - echoDelay) * 0.0005f;
-            float rp = (float)echoW - echoDelay; if (rp < 0) rp += esz;
-            const uint32_t i0 = (uint32_t)rp % esz; const uint32_t i1 = (i0 + 1) % esz; const float fr = rp - std::floor(rp);
-            const float dl = echoL[i0] + (echoL[i1] - echoL[i0]) * fr;
-            const float dr = echoR[i0] + (echoR[i1] - echoR[i0]) * fr;
-            const float sm = 0.5f * (sendDL[i] + sendDR[i]);
-            float inL = sendDL[i] * (1.f - w) + sm * w + fb * (w * dr + (1.f - w) * dl);
-            float inR = sendDR[i] * (1.f - w) + fb * (w * dl + (1.f - w) * dr);
-            echoLpL = inL + lpA * (echoLpL - inL); echoLpR = inR + lpA * (echoLpR - inR);
-            echoHpL = echoLpL + hpA * (echoHpL - echoLpL); echoHpR = echoLpR + hpA * (echoHpR - echoLpR);
-            echoL[echoW] = std::tanh(echoLpL - echoHpL); echoR[echoW] = std::tanh(echoLpR - echoHpR);
-            echoW = (echoW + 1) % esz;
-
-            // reverb (8-line FDN, Householder feedback)
-            float rin = 0.5f * (sendRL[i] + sendRR[i]);
-            revHpZ = rin + rHpA * (revHpZ - rin); rin = rin - revHpZ;
-            preBuf[preW] = rin;
-            const float rinD = preBuf[(preW + psz - pre) % psz];
-            preW = (preW + 1) % psz;
-            float o[8], sum = 0.f;
-            for (int k = 0; k < 8; ++k) { o[k] = revLine[k][revPos[k]]; sum += o[k]; }
-            const float hh = sum * 0.25f;
-            float outRL = 0.f, outRR = 0.f;
-            for (int k = 0; k < 8; ++k) {
-                float v = (o[k] - hh) * revG[k];
-                revLp[k] = v + damp * (revLp[k] - v);
-                v = revLp[k] + rinD * ((k & 1) ? 0.5f : -0.5f);
-                revLine[k][revPos[k]] = v;
-                if (++revPos[k] >= revLen[k]) revPos[k] = 0;
-                if (k < 4) outRL += o[k] * ((k & 1) ? -1.f : 1.f); else outRR += o[k] * ((k & 1) ? 1.f : -1.f);
-            }
-            if (gate) {
-                const float a = std::fabs(rin);
-                gateEnv = std::max(a, gateEnv * 0.9995f);
-                if (gateEnv > 0.003f) gateHold = gateHoldS; else if (gateHold > 0) --gateHold;
-                const float tgt = gateHold > 0 ? 1.f : 0.f;
-                gateGain += (tgt - gateGain) * (tgt > gateGain ? 0.02f : 0.004f);
-            } else gateGain = 1.f;
-
-            float l = busL[0][i] + dl * eLev + outRL * 0.35f * rLev * gateGain;
-            float r = busR[0][i] + dr * eLev + outRR * 0.35f * rLev * gateGain;
-            l = eqHighL.tick(eqLowL.tick(l)); r = eqHighR.tick(eqLowR.tick(r));
-            // compressor (linked peak)
-            const float pk = std::max(std::fabs(l), std::fabs(r));
-            cmpEnv = pk > cmpEnv ? pk + atk * (cmpEnv - pk) : pk + rel * (cmpEnv - pk);
-            if (ratio > 1.01f && thrDb < -0.1f) {
-                const float lv = 20.f * std::log10(cmpEnv + 1e-9f);
-                const float over = lv - thrDb;
-                float gain = makeup;
-                if (over > 0.f) gain *= std::pow(10.f, -over * (1.f - 1.f / ratio) / 20.f);
-                l *= gain; r *= gain;
-            }
-            l = drive(l, drv) * vol; r = drive(r, drv) * vol;
-            L[i] = safety(l); R[i] = safety(r);
-        }
-    }
-
-    // transparent below 0.9, smooth ceiling at 1.0
-    static inline float safety(float x)
-    {
-        const float a = std::fabs(x);
-        if (a <= 0.9f) return x;
-        const float y = 0.9f + 0.1f * std::tanh((a - 0.9f) * 10.f);
-        return x < 0.f ? -y : y;
-    }
-
-    static void copyCoef(Biquad& dst, const Biquad& src)
-    {
-        dst.b0 = src.b0; dst.b1 = src.b1; dst.b2 = src.b2; dst.a1 = src.a1; dst.a2 = src.a2;
-    }
+    static inline float safety(float x) { return MasterFx::safety(x); }
 };
 
 } // namespace kn

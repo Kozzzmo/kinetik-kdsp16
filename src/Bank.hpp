@@ -169,7 +169,7 @@ inline bool trackFromHex(Pattern& p, int t, const char* h)
 // Bank serialization (compact, sparse text)
 inline std::string serializeBank(const Bank& b)
 {
-    std::string s = "KNTK3\n";
+    std::string s = "KNTK4\n";
     char buf[96];
     for (int t = 0; t < kTracks; ++t) {
         std::snprintf(buf, sizeof(buf), "M %d %d\nU %d %d\n", t, b.machine[t], t, b.mute[t]);
@@ -297,9 +297,10 @@ inline int applyCommand(Bank& b, const char* line)
 // Parse a full bank. Returns false if the text isn't a bank.
 inline bool deserializeBank(Bank& b, const char* text)
 {
-    if (!text || std::strncmp(text, "KNTK", 4) != 0 || text[4] < '1' || text[4] > '3') return false;
+    if (!text || std::strncmp(text, "KNTK", 4) != 0 || text[4] < '1' || text[4] > '4') return false;
     const bool legacy = text[4] == '1'; // v0.1/0.2 states: one length for every track
     const bool oldLfo = text[4] < '3';  // before v0.4 the LFO params were 21..25
+    const bool oldFilter = text[4] < '4'; // before v0.7 params 12/13 were filter base/width
     for (auto& p : b.patterns) p.clear();
     b.resetKit();
     const char* s = text;
@@ -312,6 +313,13 @@ inline bool deserializeBank(Bank& b, const char* text)
             int pp, t, st, k, v;
             if (std::sscanf(line.c_str() + 2, "%d %d %d %d %d", &pp, &t, &st, &k, &v) == 5 && k >= 21 && k <= 25) {
                 char nb[64]; std::snprintf(nb, sizeof(nb), "l %d %d %d %d %d", pp, t, st, k + 3, v); line = nb;
+            }
+        }
+        if (oldFilter && line.size() > 2 && line[0] == 'l' && line[1] == ' ') {
+            int pp, t, st, k, v;
+            if (std::sscanf(line.c_str() + 2, "%d %d %d %d %d", &pp, &t, &st, &k, &v) == 5 && (k == 12 || k == 13)) {
+                if (k == 12) line.clear();           // old base lock: no equivalent
+                else { char nb[64]; std::snprintf(nb, sizeof(nb), "l %d %d %d %d %d", pp, t, st, 12, v); line = nb; } // width -> cutoff
             }
         }
         if (!line.empty() && line.rfind("KNTK", 0) != 0) applyCommand(b, line.c_str());

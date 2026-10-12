@@ -10,10 +10,10 @@ struct MachineHelp {
 };
 
 static const MachineHelp kMachineHelp[kMachines] = {
-    // GND-OFF
+    // OFF
     {"Empty track. Makes no sound; useful to free a track or keep it for MIDI-only use.",
      {"-", "-", "-", "-", "-", "-", "-", "-"}},
-    // TRX-BD
+    // KICK
     {"Analog-style bass drum: a sine oscillator with a fast pitch sweep, a click transient and optional noise.",
      {"Base pitch of the drum (about 25 to 160 Hz).",
       "Amplitude decay: short punch to long boom.",
@@ -23,7 +23,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Amount of low-passed noise mixed into the body.",
       "Harmonics: folds the sine towards a rounder square for a fatter, buzzier kick.",
       "Soft clipping of the voice (adds drive and loudness)."}},
-    // TRX-SD
+    // SNARE
     {"Analog-style snare: two detuned tone oscillators for the body plus high-passed noise for the snares.",
      {"Pitch of the drum body (about 100 to 450 Hz).",
       "Decay of the tonal body.",
@@ -33,7 +33,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Tone of the noise (high-pass cutoff): low = thick, high = thin and bright.",
       "Interval of the second body oscillator: changes the 'ring' of the drum.",
       "Decay of the snare noise, independent from the body."}},
-    // TRX-XT
+    // TOM
     {"Analog-style tom: like the bass drum but tuned higher, with band-passed noise. Good for toms and congas.",
      {"Pitch of the tom (about 50 to 600 Hz).",
       "Amplitude decay.",
@@ -43,7 +43,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Amount of band-passed noise (skin texture).",
       "Harmonics: rounder or more square tone.",
       "Soft clipping."}},
-    // TRX-CP
+    // CLAP
     {"Analog-style hand clap: several quick bursts of band-passed noise followed by a reverb-like tail.",
      {"Number of claps in the burst (1 to 6 hands).",
       "Length of the tail after the last clap.",
@@ -53,7 +53,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Level of the tail.",
       "Random timing variation between the claps (humanize).",
       "Drive / soft clipping."}},
-    // TRX-RS
+    // RIM
     {"Analog-style rimshot: a short high tone and a lower body, plus a sharp click and noise.",
      {"Pitch of the rim tone (about 300 Hz to 2 kHz).",
       "Decay of the tones.",
@@ -63,7 +63,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Decay of the noise.",
       "High-pass cutoff of the noise.",
       "Soft clipping."}},
-    // TRX-CB
+    // COWBELL
     {"Analog-style cowbell: two square oscillators through a resonant band-pass, with a two-stage decay.",
      {"Pitch of the first oscillator (about 250 Hz to 1.2 kHz).",
       "Length of the long part of the decay.",
@@ -73,7 +73,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Balance between the short 'clack' and the long ring.",
       "Level of the attack click.",
       "Soft clipping."}},
-    // TRX-CH
+    // CL HAT
     {"Analog-style closed hi-hat: six square oscillators at inharmonic ratios (metal) mixed with noise, high-passed.",
      {"Tuning of the metallic oscillators.",
       "Decay (short).",
@@ -83,7 +83,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Spread of the oscillator ratios: more or less clangy.",
       "Attack time: softens the start of the hit.",
       "Soft clipping."}},
-    // TRX-OH
+    // OP HAT
     {"Analog-style open hi-hat: same metal + noise source as the closed hat, with a longer decay.",
      {"Tuning of the metallic oscillators.",
       "Decay (long).",
@@ -93,7 +93,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Spread of the oscillator ratios.",
       "Attack time.",
       "Soft clipping."}},
-    // TRX-CY
+    // CYMBAL
     {"Analog-style cymbal: metal oscillators and noise with a long decay, plus a bell component.",
      {"Tuning of the metallic oscillators.",
       "Decay (very long).",
@@ -103,7 +103,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Spread of the oscillator ratios.",
       "Level of the bell (low sine partials): ride-like ping.",
       "Soft clipping."}},
-    // TRX-MA
+    // SHAKER
     {"Maracas / shaker: filtered noise with an attack-hold-decay envelope and random grain bursts.",
      {"Attack time (how fast it fades in).",
       "Hold time at full level.",
@@ -113,7 +113,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Grain depth: how much the noise is broken into random bead hits.",
       "Grain rate: density of the bead hits.",
       "Soft clipping."}},
-    // TRX-CL
+    // CLAVE
     {"Claves / wood block: a short high sine with a resonant second partial, a click and a little noise.",
      {"Pitch (about 800 Hz to 4 kHz).",
       "Decay.",
@@ -123,7 +123,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Level of the noise.",
       "Decay of the noise.",
       "Soft clipping."}},
-    // EFM-BD
+    // FM KICK
     {"FM bass drum: a sine carrier phase-modulated by a second sine with its own envelope and feedback.",
      {"Pitch of the carrier (about 25 to 150 Hz).",
       "Amplitude decay.",
@@ -133,7 +133,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Modulator frequency ratio: integer-like values are tonal, others metallic.",
       "Decay of the modulation: short = just a click of FM at the attack.",
       "Modulator feedback: adds noise-like grit."}},
-    // EFM-SD
+    // FM SNARE
     {"FM snare: an FM body plus high-passed noise.",
      {"Pitch of the body (about 100 to 600 Hz).",
       "Decay of the body.",
@@ -143,7 +143,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Modulator frequency ratio.",
       "Decay of the modulation.",
       "High-pass cutoff of the noise."}},
-    // EFM-XT
+    // FM TOM
     {"FM tom: an FM voice with a pitch sweep and a click.",
      {"Pitch (about 50 to 700 Hz).",
       "Amplitude decay.",
@@ -153,7 +153,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Modulator frequency ratio.",
       "Decay of the modulation.",
       "Level of the attack click."}},
-    // EFM-CP
+    // FM CLAP
     {"FM clap: clap bursts and tail shaping a noisy FM tone (high feedback).",
      {"Pitch of the FM tone (about 200 Hz to 3 kHz).",
       "Length of the tail.",
@@ -163,7 +163,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Modulator frequency ratio.",
       "Decay of the modulation.",
       "Modulator feedback: more = noisier."}},
-    // EFM-RS
+    // FM RIM
     {"FM rimshot: a very short FM tone with noise.",
      {"Pitch (about 300 Hz to 2.5 kHz).",
       "Decay.",
@@ -173,7 +173,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Level of the noise.",
       "Decay of the noise.",
       "Modulator feedback."}},
-    // EFM-CB
+    // FM BELL
     {"FM cowbell / bell: FM tone with a click, through a low-pass filter.",
      {"Pitch (about 250 Hz to 1.5 kHz).",
       "Decay.",
@@ -183,7 +183,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Modulator frequency ratio.",
       "Decay of the modulation.",
       "Low-pass cutoff (tone)."}},
-    // EFM-HH
+    // FM HAT
     {"FM hi-hat: high, inharmonic FM with feedback, high-passed, with optional tremolo.",
      {"Carrier pitch (about 1 to 10 kHz).",
       "Decay.",
@@ -193,7 +193,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Modulator frequency ratio.",
       "Decay of the modulation.",
       "High-pass cutoff."}},
-    // EFM-CY
+    // FM CYMBAL
     {"FM cymbal: inharmonic FM with feedback and a long decay, plus a bell layer.",
      {"Carrier pitch (about 500 Hz to 6 kHz).",
       "Decay (long).",
@@ -203,7 +203,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Modulator frequency ratio.",
       "Decay of the modulation.",
       "High-pass cutoff."}},
-    // PI-BD
+    // PH KICK
     {"Physical-model bass drum: a mallet strikes a membrane modelled by resonant modes (circular drum ratios).",
      {"Pitch of the membrane (about 30 to 200 Hz).",
       "Decay of the membrane.",
@@ -213,7 +213,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Number and weight of modes: from simple to complex overtones.",
       "Amount of noise.",
       "Soft clipping."}},
-    // PI-SD
+    // PH SNARE
     {"Physical-model snare: membrane modes excited by a mallet, plus snare wires that buzz with the drum.",
      {"Pitch of the membrane (about 100 to 500 Hz).",
       "Decay of the membrane.",
@@ -223,7 +223,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Decay of the snare wires.",
       "Number and weight of modes.",
       "Soft clipping."}},
-    // PI-MT
+    // PH METAL
     {"Physical-model metal: a struck metal plate or bell with inharmonic modes.",
      {"Pitch (about 80 Hz to 2 kHz).",
       "Decay (up to several seconds).",
@@ -233,7 +233,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Number and weight of modes.",
       "Detuning spread of the modes (beating, shimmer).",
       "Soft clipping."}},
-    // PI-ML
+    // PH MALLET
     {"Physical-model mallet bars: marimba, xylophone, vibraphone or glockenspiel-like tones.",
      {"Pitch (about 100 Hz to 2 kHz). Locks on this make melodies.",
       "Decay.",
@@ -243,7 +243,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Strike position on the bar: changes which overtones sound.",
       "Resonator: sustain of the fundamental, like a tube under the bar.",
       "Soft clipping."}},
-    // PI-KS
+    // PH STRING
     {"Plucked string (Karplus-Strong): a burst of energy circulating in a tuned delay loop. Basses, plucks, harps.",
      {"Pitch (about 40 Hz to 1.5 kHz). Locks on this make bass lines.",
       "Decay of the string.",
@@ -253,7 +253,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Stiffness: inharmonic, piano / bell-like string.",
       "Pluck noise vs smooth pluck.",
       "Soft clipping."}},
-    // GND-SN
+    // SINE
     {"Sine generator with pitch envelope and waveform morph. Sub bass, blips, test tones.",
      {"Pitch (about 30 Hz to 4 kHz).",
       "Decay (maximum = sustains while held by hold/attack).",
@@ -263,7 +263,7 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Attack time.",
       "Hold time at full level.",
       "Soft clipping."}},
-    // GND-NS
+    // NOISE
     {"Noise generator with envelope, filters and bit crushing. Risers, hiss, textures, snares layers.",
      {"Attack time (0 = instant).",
       "Hold time.",
@@ -275,45 +275,49 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Soft clipping."}},
 };
 
-// help for track effects / routing / lfo parameters (index = param - 8)
-static const char* const kFxHelp[28] = {
-    "Amplitude modulation depth: a sine LFO/oscillator multiplies the sound (tremolo to ring-mod).",
-    "Amplitude modulation frequency (0.5 Hz to 2 kHz). High values give metallic ring-mod tones.",
+// help for track filter / effects / mix / lfo parameters (index = param - 8)
+static const char* const kFxHelp[kTrackParams - 8] = {
+    "Tremolo depth: a sine multiplies the sound (tremolo, towards ring modulation at high rates).",
+    "Tremolo rate (0.5 Hz to 2 kHz). High values give metallic ring-mod tones.",
     "EQ frequency of the peak filter (40 Hz to 16 kHz).",
     "EQ gain: centre (0) = flat, left = cut, right = boost (up to 18 dB).",
-    "Filter base: high-pass cutoff. 0 = no high-pass.",
-    "Filter width: distance from the base to the low-pass cutoff. 127 = fully open.",
-    "Filter resonance (applies to both edges of the band).",
-    "Sample-rate reduction: lo-fi aliasing, from subtle grit to heavy decimation.",
-    "Distortion: tanh overdrive before the effects.",
-    "Track volume.",
+    "Filter cutoff (20 Hz to 20 kHz). With LP types, fully right = open.",
+    "Filter type: LP 12 (soft low-pass), LP 24 (steep low-pass), BAND, HIGH (high-pass) or NOTCH.",
+    "Filter resonance: emphasis at the cutoff.",
+    "Crush: lowers the sample rate, from subtle grit to heavy decimation.",
+    "Drive: overdrive before the effects.",
+    "Track level.",
     "Stereo panning: L / centre / R.",
-    "Send to the master echo.",
-    "Send to the master reverb.",
-    "Filter envelope amount: at each trig the filter jumps up (right) or down (left) by up to 6 octaves, then returns.",
-    "Filter envelope decay: how fast the filter returns to its normal position (5 ms to 3 s).",
-    "Velocity sensitivity: how much MIDI velocity and accents change the level (0 = always full).",
-    "LFO 1 speed (0.03 to 30 Hz).",
+    "Send to the master delay (ECHO tab).",
+    "Send to the master reverb (REVERB tab).",
+    "Filter envelope amount: at each trig the cutoff jumps up (right) or down (left) by up to 6 octaves, then returns.",
+    "Filter envelope decay: how fast the cutoff returns (5 ms to 3 s).",
+    "Velocity: how much MIDI velocity and accents change the level (0 = always full).",
+    "LFO 1 rate: speed in Hz (0.03 to 30), or a note length when SYNC is TEMPO.",
     "LFO 1 depth. 0 = LFO off.",
-    "LFO 1 shape: triangle, sine, square, saw up, saw down, random.",
-    "LFO 1 mode: FREE runs continuously, TRIG restarts on each trig of this track, HOLD samples one value per trig.",
-    "LFO 1 destination: which parameter (of the target track) is moved.",
-    "LFO 1 target track: SELF = this track, T01..T16 = modulate another track (cross-modulation).",
-    "LFO 2 speed (0.03 to 30 Hz).",
+    "LFO 1 wave: triangle, sine, square, saw up, saw down, random.",
+    "LFO 1 mode: FREE runs continuously, RETRIG restarts on each trig of this track, HOLD keeps one value per trig.",
+    "LFO 1 destination: click the knob (or the box in the display) for the list of what it can move.",
+    "LFO 1 target track: SELF = this track, T01..T16 = modulate another track.",
+    "LFO 2 rate: speed in Hz (0.03 to 30), or a note length when SYNC is TEMPO.",
     "LFO 2 depth. 0 = LFO off.",
-    "LFO 2 shape: triangle, sine, square, saw up, saw down, random.",
-    "LFO 2 mode: FREE, TRIG or HOLD.",
-    "LFO 2 destination parameter.",
+    "LFO 2 wave: triangle, sine, square, saw up, saw down, random.",
+    "LFO 2 mode: FREE, RETRIG or HOLD.",
+    "LFO 2 destination: click the knob for the list.",
     "LFO 2 target track: SELF or another track.",
+    "LFO 1 sync: FREE = rate in Hz; TEMPO = rate as a note length, locked to the song.",
+    "LFO 1 phase: where in its cycle the LFO starts (0 to 360 degrees).",
+    "LFO 2 sync: FREE = rate in Hz; TEMPO = rate as a note length, locked to the song.",
+    "LFO 2 phase: where in its cycle the LFO starts (0 to 360 degrees).",
 };
 
 // help for the TRACK page (kit settings)
 static const char* const kKitHelp[kKitFields] = {
     "Choke group (A-D): a trig on this track cuts the sound of the other tracks of the same group (e.g. open/closed hats).",
-    "Audio output: MAIN or the separate stereo outputs OUT 2-4 (dry; the echo/reverb sends still go to the main mix).",
+    "Audio output: MAIN or the separate stereo outputs OUT 2-4 (dry; the delay/reverb sends still go to the main mix).",
     "MIDI channel: notes on this channel play the track chromatically (C3 = 60 = the sound as set). OFF = drum map only.",
-    "FM quantize: the FM machines' MFRQ ratio snaps to musical values (0.5, 1, 1.5, 2, 3, 4 ... 12) for tuned FM.",
-    "Oscillator shape of the analog tone machines (BD, XT, CL): sine, triangle or square.",
+    "FM snap: the FM RATIO of the FM machines snaps to musical values (0.5, 1, 1.5, 2, 3, 4 ... 12) for tuned FM.",
+    "Oscillator wave of the tone machines (KICK, TOM, CLAVE): sine, triangle or square.",
 };
 
 } // namespace kn

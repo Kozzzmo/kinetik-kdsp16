@@ -8,17 +8,18 @@ Sister product: **Kinetik KMSP-6** (mono synth), repository `Kozzzmo/kinetik-kms
 
 | File | Role |
 |---|---|
-| `Params.hpp` | constants (16 tracks, 64 steps, 16 patterns, 36 lockable params per track), machines and their 8 synth params, FX/LFO params, kit fields, conditions, ratchets, echo divisions |
+| `Params.hpp` | constants (16 tracks, 64 steps, 16 patterns, 40 lockable params per track: 0–7 machine, 8–15 TREMOLO TREM RATE EQ FREQ EQ GAIN CUTOFF TYPE RESO CRUSH, 16–23 DRIVE LEVEL PAN DELAY REVERB ENV AMT ENV DEC VELOCITY, LFO 1/2 at 24/30, SYNC+PHASE at 36+2l via `lfoParam(l,k)`), machines (readable names: KICK, SNARE..., FM ..., PH ... = physical) and their 8 synth params, kit fields, conditions, ratchets, echo divisions, master params incl. ECHO/REVERB MODEL + MOD |
+| `MasterFx.hpp` | master echo (5 models) / reverb (5 models) / EQ / compressor / limiter — **identical in kinetik-kmsp6** |
 | `Bank.hpp` | patterns (trigs, locks, conditions, micro-timing, ratchets, per-track lengths), kit (machine, mute, kit fields); text serialization (`serializeBank` / `deserializeBank`); `applyCommand` (P M U K f l c m r T cl ct cp tr pc) |
 | `Voice.hpp` | drum machines (analog-style, FM, physical models, noise generators) |
 | `Engine.hpp` | sequencer + voices + master FX, 4 output buses |
 | `KinetikPlugin.cpp` | DPF plugin glue: parameters, states, MIDI (notes 36–51 = tracks, or chromatic per track MIDI channel) |
-| `KinetikUI.cpp` | the whole UI (≈1 700 lines, 1180×720 canvas, overlays: machine picker, presets, help, skins, save) |
+| `KinetikUI.cpp` | the whole UI (1180×720 canvas; pages SYNTH FILTER FX MIX LFO 1 LFO 2 TRACK, `pageParam` lists the knobs of each; the upper LCD draws a graphic per page via `drawPageGraphic` — the SYNTH page renders one hit with a private `Voice`; overlays: machine picker, presets, help, skins, save, LFO destination menu `ovDest`) |
 | `Presets.hpp` | 21 factory presets built in code (`PB` builder) |
 | `Random.hpp`, `Help.hpp`, `Skins.hpp`, `Fonts.hpp`, `Dsp.hpp` | randomizers, help texts, 4 skins, embedded fonts, DSP helpers |
 
 User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Application Support/Kinetik/KDSP-16/Presets`
-(header `KDSP16-PRESET 1`, `V <param> <value>` lines, then `BANK` + serialized bank).
+(header `KDSP16-PRESET 2`, `V <param> <value>` lines, then `BANK` + serialized bank).
 
 ## Working with the owner (read first)
 
@@ -73,7 +74,10 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
 - Engine: per-block event list (sorted by frame then kind), swing, micro-timing, ratchets, conditions
   (probability, FILL, PRE, 1ST, A:B), pattern change at the master length, 4 stereo buses (Main + Out 2–4),
   master echo / FDN reverb / EQ / compressor / drive / safety limiter, denormals flushed (SSE and ARM64).
-- `Skins.hpp`, `Fonts.hpp` (embedded OFL fonts) and `Dsp.hpp` are shared with the sister plugin
+- Parameter and machine names must stay readable and must not copy any hardware maker's abbreviations.
+- Bank header `KNTK4` (`KNTK3` = filter base/width locks, converted on load); user presets `KDSP16-PRESET 2` (v1 converted by `presetIndexV1` + `migrateFilterV1`).
+- Screenshots: `jackd -d dummy &`, `Xvfb :77 &`, run `bin/KinetikKDSP16` with DISPLAY=:77 (window offset 110,90 on a 1400x900 screen), `xdotool` to click, `import` to grab.
+- `Skins.hpp`, `Fonts.hpp` (embedded OFL fonts), `MasterFx.hpp` and `Dsp.hpp` are shared with the sister plugin
   (kinetik-kdsp16 ⇄ kinetik-kmsp6): keep them identical in both repositories.
 
 ## Licences and demo mode

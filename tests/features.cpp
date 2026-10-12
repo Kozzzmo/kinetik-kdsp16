@@ -10,7 +10,7 @@ static std::vector<std::pair<int,double>> run(Engine* e, double seconds, int blo
   return hits;
 }
 static Engine* fresh(){ Engine* e=new Engine(); e->init(48000); e->global[gPLAY]=1; Pattern& p=e->bank.patterns[0]; p.clear(); p.swing=50;
-  for(int t=0;t<16;t++){ e->bank.machine[t]=mGND_SN; for(int i=0;i<8;i++) e->trackParam[t][i]=kMachineDefs[mGND_SN].def[i]; e->trackParam[t][1]=2; } return e; }
+  for(int t=0;t<16;t++){ e->bank.machine[t]=mSINE; for(int i=0;i<8;i++) e->trackParam[t][i]=kMachineDefs[mSINE].def[i]; e->trackParam[t][1]=2; } return e; }
 int main(){
   const double step=0.125; // 120 bpm 16ths
   { // micro timing: track0 step0 micro +6 (= 1/4 step late)
@@ -54,8 +54,8 @@ int main(){
       std::vector<float> L(9600),R(9600); for(int b=0;b+64<=9600;b+=64) e->process(&L[b],&R[b],64,Transport(),b==0?&ne:nullptr,b==0?1:0);
       int zc=0; for(int i=1000;i<9600;i++) if((L[i-1]<0)!=(L[i]<0)) zc++; printf("semis %d: zc rate %.0f Hz\n",semis,zc*48000.0/(2*8600)); } }
   { // filter env: FENV 127 with low FLTW: brighter at attack
-    Engine* e=fresh(); e->global[gPLAY]=0; e->bank.machine[0]=mGND_NS; for(int i=0;i<8;i++) e->trackParam[0][i]=kMachineDefs[mGND_NS].def[i]; e->trackParam[0][2]=127;
-    e->trackParam[0][tpFLTW]=30; e->trackParam[0][tpFENV]=127; e->trackParam[0][tpFDEC]=50; NoteEvent ne{0,0,1.f,0};
+    Engine* e=fresh(); e->global[gPLAY]=0; e->bank.machine[0]=mNOISE; for(int i=0;i<8;i++) e->trackParam[0][i]=kMachineDefs[mNOISE].def[i]; e->trackParam[0][2]=127;
+    e->trackParam[0][tpCUTOFF]=30; e->trackParam[0][tpFENV]=127; e->trackParam[0][tpFDEC]=50; NoteEvent ne{0,0,1.f,0};
     std::vector<float> L(48000),R(48000); for(int b=0;b+64<=48000;b+=64) e->process(&L[b],&R[b],64,Transport(),b==0?&ne:nullptr,b==0?1:0);
     auto zcr=[&](int a,int b2){int z=0; for(int i=a+1;i<b2;i++) if((L[i-1]<0)!=(L[i]<0)) z++; return z*48000.0/(2*(b2-a));};
     printf("filter env: brightness (zcr) at start %.0f Hz, later %.0f Hz\n", zcr(200,2000), zcr(30000,40000)); }

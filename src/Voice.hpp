@@ -101,35 +101,35 @@ struct Voice {
         lvl2 = 0; nLvl = 0; clickLvl = 0; pDepth = 0; gainNorm = 1.f;
 
         switch (machine) {
-        case mTRX_BD:
+        case mKICK:
             f1 = expmap(x[0], 25, 160); ampCoef = decayCoef(expmap(x[1], 0.05f, 3.f), sr);
             pDepth = x[2] * 4.f; pCoef = decayCoef(expmap(x[3], 0.004f, 0.5f), sr);
             clickLvl = x[4] * 0.9f; clickCoef = decayCoef(0.012f, sr); clickFilt.setup(2500, 0.8f, sr);
             nLvl = x[5] * 0.6f; nCoef = ampCoef; nMode = 0; nFilt.setup(3000, 0.7f, sr);
             harm = x[6]; drv = x[7]; gainNorm = 0.9f;
             break;
-        case mTRX_XT:
+        case mTOM:
             f1 = expmap(x[0], 50, 600); ampCoef = decayCoef(expmap(x[1], 0.05f, 2.f), sr);
             pDepth = x[2] * 2.f; pCoef = decayCoef(expmap(x[3], 0.005f, 0.6f), sr);
             clickLvl = x[4] * 0.6f; clickCoef = decayCoef(0.01f, sr); clickFilt.setup(3500, 0.8f, sr);
             nLvl = x[5] * 0.5f; nCoef = decayCoef(expmap(x[1], 0.03f, 0.6f), sr); nMode = 1; nFilt.setup(f1 * 3.f, 1.f, sr);
             harm = x[6]; drv = x[7]; gainNorm = 0.85f;
             break;
-        case mTRX_CL:
+        case mCLAVE:
             f1 = expmap(x[0], 800, 4000); ampCoef = decayCoef(expmap(x[1], 0.01f, 0.5f), sr);
             clickLvl = x[2] * 0.7f; clickCoef = decayCoef(0.004f, sr); clickFilt.setup(6000, 1.f, sr);
             ratio2 = 1.5f + x[3] * 2.5f; lvl2 = x[4] * 0.8f; coef2 = decayCoef(expmap(x[1], 0.005f, 0.25f), sr);
             nLvl = x[5] * 0.5f; nCoef = decayCoef(expmap(x[6], 0.005f, 0.2f), sr); nMode = 2; nFilt.setup(3000, 0.7f, sr);
             drv = x[7]; gainNorm = 0.6f;
             break;
-        case mGND_SN:
+        case mSINE:
             f1 = expmap(x[0], 30, 4000);
             ampCoef = x[1] >= 0.999f ? 1.f : decayCoef(expmap(x[1], 0.02f, 10.f), sr);
             pDepth = x[2] * 4.f; pCoef = decayCoef(expmap(x[3], 0.004f, 1.f), sr);
             wave = x[4]; attackS = (uint32_t)(x[5] * x[5] * 1.0f * sr); holdS = (uint32_t)(x[6] * 2.f * sr);
             drv = x[7]; gainNorm = 0.6f;
             break;
-        case mTRX_SD:
+        case mSNARE:
             f1 = expmap(x[0], 100, 450); ampCoef = decayCoef(expmap(x[1], 0.02f, 0.8f), sr);
             pDepth = x[2]; pCoef = decayCoef(expmap(x[3], 0.005f, 0.25f), sr);
             nLvl = x[4] * 0.9f; nMode = 2; nFilt.setup(expmap(x[5], 300, 9000), 0.7f, sr);
@@ -137,14 +137,14 @@ struct Voice {
             nCoef = decayCoef(expmap(x[7], 0.03f, 1.0f), sr);
             outMode = 3; outFilt.setup(13000, 0.7f, sr); gainNorm = 0.7f;
             break;
-        case mTRX_RS:
+        case mRIM:
             f1 = expmap(x[0], 300, 2000); ampCoef = decayCoef(expmap(x[1], 0.005f, 0.3f), sr);
             ratio2 = 0.42f; lvl2 = x[2]; coef2 = ampCoef;
             clickLvl = x[3]; clickCoef = decayCoef(0.003f, sr); clickFilt.setup(5000, 1.2f, sr);
             nLvl = x[4] * 0.7f; nCoef = decayCoef(expmap(x[5], 0.005f, 0.3f), sr); nMode = 2; nFilt.setup(expmap(x[6], 500, 10000), 0.7f, sr);
             harm = 0.4f; drv = x[7]; gainNorm = 0.6f;
             break;
-        case mTRX_CP:
+        case mCLAP:
             bursts = 1 + (int)(x[0] * 5.f + 0.5f);
             tailCoef = decayCoef(expmap(x[1], 0.05f, 1.5f), sr);
             clapSpacing = expmap(x[2], 0.003f, 0.03f) * sr; clapJitter = x[6] * 0.5f;
@@ -152,7 +152,7 @@ struct Voice {
             outMode = 2; outFilt.setup(expmap(x[3], 500, 5000), 0.6f + x[4] * 8.f, sr);
             tailLvl = x[5]; drv = x[7]; gainNorm = 1.4f;
             break;
-        case mTRX_CB:
+        case mCOWBELL:
             f1 = expmap(x[0], 250, 1200);
             ratio2 = 1.3f + x[2] * 0.5f;
             ampCoef = decayCoef(expmap(x[1], 0.05f, 1.5f), sr);
@@ -162,21 +162,21 @@ struct Voice {
             drv = x[7]; metalCount = 2; gainNorm = 0.9f; bellLvl = 0;
             mfreq[0] = f1; mfreq[1] = f1 * ratio2;
             break;
-        case mTRX_CH: case mTRX_OH: case mTRX_CY: {
+        case mCLHAT: case mOPHAT: case mCYMBAL: {
             static const float R[6] = {1.f, 1.4827f, 1.8003f, 2.5461f, 2.6303f, 3.8968f};
             const float base = expmap(x[0], 100, 600);
             const float spread = 0.5f + x[5];
             for (int i = 0; i < 6; ++i) mfreq[i] = base * (1.f + (R[i] - 1.f) * spread);
             metalCount = 6;
             float dec;
-            if (machine == mTRX_CH) dec = expmap(x[1], 0.01f, 0.5f);
-            else if (machine == mTRX_OH) dec = expmap(x[1], 0.1f, 3.f);
+            if (machine == mCLHAT) dec = expmap(x[1], 0.01f, 0.5f);
+            else if (machine == mOPHAT) dec = expmap(x[1], 0.1f, 3.f);
             else dec = expmap(x[1], 0.3f, 6.f);
             ampCoef = decayCoef(dec, sr);
             outMode = 1; outFilt.setup(expmap(x[2], 1000, 12000), 0.5f + x[4] * 4.f, sr);
             outFilt2.setup(expmap(x[2], 1000, 12000) * 1.4f, 0.8f, sr);
             metl = x[3];
-            if (machine == mTRX_CY) {
+            if (machine == mCYMBAL) {
                 bellLvl = x[6] * 0.5f; bellCoef = decayCoef(dec * 0.7f, sr);
                 f1 = base * 2.f;
             } else {
@@ -186,7 +186,7 @@ struct Voice {
             drv = x[7]; gainNorm = 1.4f;
             break;
         }
-        case mTRX_MA:
+        case mSHAKER:
             attackS = (uint32_t)(expmap(x[0], 0.0005f, 0.1f) * sr);
             holdS = (uint32_t)(x[1] * 0.5f * sr);
             ampCoef = decayCoef(expmap(x[2], 0.02f, 1.0f), sr);
@@ -195,7 +195,7 @@ struct Voice {
             grain = x[5]; grainRate = expmap(x[6], 20, 400); grainCoef = decayCoef(0.01f, sr);
             crush = 0; drv = x[7]; gainNorm = 1.2f;
             break;
-        case mGND_NS:
+        case mNOISE:
             attackS = x[0] <= 0.f ? 0 : (uint32_t)(expmap(x[0], 0.0005f, 1.0f) * sr);
             holdS = (uint32_t)(x[1] * 2.f * sr);
             ampCoef = x[2] >= 0.999f ? 1.f : decayCoef(expmap(x[2], 0.01f, 4.f), sr);
@@ -203,13 +203,13 @@ struct Voice {
             outFilt2.setup(expmap(x[4], 100, 20000), 0.5f + x[5] * 9.f, sr);
             crush = x[6]; grain = 0; drv = x[7]; gainNorm = 0.5f;
             break;
-        case mEFM_BD: case mEFM_SD: case mEFM_XT: case mEFM_CP: case mEFM_RS: case mEFM_CB: case mEFM_HH: case mEFM_CY:
+        case mFM_KICK: case mFM_SNARE: case mFM_TOM: case mFM_CLAP: case mFM_RIM: case mFM_BELL: case mFM_HAT: case mFM_CYMBAL:
             controlFM(x);
             break;
-        case mPI_BD: case mPI_SD: case mPI_MT: case mPI_ML:
+        case mPH_KICK: case mPH_SNARE: case mPH_METAL: case mPH_MALLET:
             controlModal(x);
             break;
-        case mPI_KS:
+        case mPH_STRING:
             controlString(x);
             break;
         default: break;
@@ -235,27 +235,27 @@ struct Voice {
     {
         fb = 0; trem = 0; bellLvl = 0; fmClap = false; ratio2 = 1;
         switch (machine) {
-        case mEFM_BD:
+        case mFM_KICK:
             f1 = expmap(x[0], 25, 150); ampCoef = decayCoef(expmap(x[1], 0.05f, 3.f), sr);
             pDepth = x[2] * 4.f; pCoef = decayCoef(expmap(x[3], 0.004f, 0.4f), sr);
             modIdx = fmIndex(x[4]); ratio2 = fmRatio(x[5]); modCoef = decayCoef(expmap(x[6], 0.003f, 1.f), sr);
             fb = x[7] * 1.2f; gainNorm = 0.9f;
             break;
-        case mEFM_SD:
+        case mFM_SNARE:
             f1 = expmap(x[0], 100, 600); ampCoef = decayCoef(expmap(x[1], 0.02f, 0.8f), sr);
             nLvl = x[2] * 0.8f; nCoef = decayCoef(expmap(x[3], 0.02f, 0.8f), sr); nMode = 2;
             modIdx = fmIndex(x[4]); ratio2 = fmRatio(x[5]); modCoef = decayCoef(expmap(x[6], 0.003f, 1.f), sr);
             nFilt.setup(expmap(x[7], 200, 8000), 0.7f, sr); pDepth = 0.3f; pCoef = decayCoef(0.03f, sr);
             gainNorm = 0.7f;
             break;
-        case mEFM_XT:
+        case mFM_TOM:
             f1 = expmap(x[0], 50, 700); ampCoef = decayCoef(expmap(x[1], 0.05f, 2.f), sr);
             pDepth = x[2] * 2.f; pCoef = decayCoef(expmap(x[3], 0.005f, 0.5f), sr);
             modIdx = fmIndex(x[4]); ratio2 = fmRatio(x[5]); modCoef = decayCoef(expmap(x[6], 0.003f, 1.f), sr);
             clickLvl = x[7] * 0.7f; clickCoef = decayCoef(0.006f, sr); clickFilt.setup(4000, 1.f, sr);
             gainNorm = 0.85f;
             break;
-        case mEFM_CP:
+        case mFM_CLAP:
             f1 = expmap(x[0], 200, 3000); tailCoef = decayCoef(expmap(x[1], 0.05f, 1.5f), sr);
             bursts = 1 + (int)(x[2] * 5.f + 0.5f);
             clapSpacing = expmap(x[3], 0.003f, 0.03f) * sr; clapJitter = 0.1f;
@@ -263,26 +263,26 @@ struct Voice {
             modIdx = fmIndex(x[4]); ratio2 = fmRatio(x[5]); modCoef = decayCoef(expmap(x[6], 0.01f, 1.5f), sr);
             fb = x[7] * 1.5f; outMode = 1; outFilt.setup(400, 0.7f, sr); gainNorm = 0.6f;
             break;
-        case mEFM_RS:
+        case mFM_RIM:
             f1 = expmap(x[0], 300, 2500); ampCoef = decayCoef(expmap(x[1], 0.005f, 0.25f), sr);
             modIdx = fmIndex(x[2]); ratio2 = fmRatio(x[3]); modCoef = decayCoef(expmap(x[4], 0.002f, 0.5f), sr);
             nLvl = x[5] * 0.6f; nCoef = decayCoef(expmap(x[6], 0.005f, 0.3f), sr); nMode = 2; nFilt.setup(2000, 0.7f, sr);
             fb = x[7] * 1.2f; gainNorm = 0.6f;
             break;
-        case mEFM_CB:
+        case mFM_BELL:
             f1 = expmap(x[0], 250, 1500); ampCoef = decayCoef(expmap(x[1], 0.05f, 1.5f), sr);
             clickLvl = x[2] * 0.8f; clickCoef = decayCoef(0.005f, sr); clickFilt.setup(5000, 1.f, sr);
             fb = x[3] * 1.2f;
             modIdx = fmIndex(x[4]); ratio2 = fmRatio(x[5]); modCoef = decayCoef(expmap(x[6], 0.005f, 1.5f), sr);
             outMode = 3; outFilt.setup(expmap(x[7], 500, 15000), 0.8f, sr); gainNorm = 1.0f;
             break;
-        case mEFM_HH:
+        case mFM_HAT:
             f1 = expmap(x[0], 1000, 10000); ampCoef = decayCoef(expmap(x[1], 0.01f, 1.5f), sr);
             trem = x[2]; tremF = expmap(x[3], 2, 200);
             modIdx = fmIndex(x[4]); ratio2 = fmRatio(x[5]) * 1.4142f; modCoef = decayCoef(expmap(x[6], 0.005f, 1.5f), sr);
             fb = 0.7f; outMode = 1; outFilt.setup(expmap(x[7], 500, 12000), 0.7f, sr); gainNorm = 0.6f;
             break;
-        case mEFM_CY:
+        case mFM_CYMBAL:
             f1 = expmap(x[0], 500, 6000); ampCoef = decayCoef(expmap(x[1], 0.2f, 6.f), sr);
             fb = x[2] * 1.5f; bellLvl = x[3] * 0.6f; bellCoef = decayCoef(expmap(x[1], 0.1f, 3.f), sr);
             modIdx = fmIndex(x[4]); ratio2 = fmRatio(x[5]) * 1.4142f; modCoef = decayCoef(expmap(x[6], 0.01f, 4.f), sr);
@@ -308,7 +308,7 @@ struct Voice {
         const float hard = x[2];
         nLvl = 0; snareLvl = 0; tens = 0; modalRing = 0;
         switch (machine) {
-        case mPI_BD:
+        case mPH_KICK:
             modalBase = expmap(x[0], 30, 200); modalT60 = expmap(x[1], 0.05f, 3.f);
             tens = x[3] * 0.8f; modalDamp = x[4];
             modes = 2 + (int)(x[5] * 6.f);
@@ -316,7 +316,7 @@ struct Voice {
             nLvl = x[6] * 0.4f; nCoef = decayCoef(modalT60 * 0.3f, sr); nMode = 0; nFilt.setup(2000, 0.7f, sr);
             drv = x[7]; gainNorm = 0.7f;
             break;
-        case mPI_SD:
+        case mPH_SNARE:
             modalBase = expmap(x[0], 100, 500); modalT60 = expmap(x[1], 0.05f, 1.5f);
             tens = x[3] * 0.5f; modalDamp = 0.5f;
             snareLvl = x[4] * 0.8f; snareCoef = decayCoef(expmap(x[5], 0.05f, 0.8f), sr);
@@ -325,7 +325,7 @@ struct Voice {
             for (int i = 0; i < kModes; ++i) { modalRatio[i] = membrane[i]; modalGain[i] = 1.f / (1.f + i * 0.6f); }
             drv = x[7]; gainNorm = 0.8f;
             break;
-        case mPI_MT: {
+        case mPH_METAL: {
             modalBase = expmap(x[0], 80, 2000); modalT60 = expmap(x[1], 0.1f, 8.f);
             const float inh = 1.f + x[3];
             modalDamp = x[4]; modes = 2 + (int)(x[5] * 6.f);
@@ -337,7 +337,7 @@ struct Voice {
             drv = x[7]; gainNorm = 0.35f;
             break;
         }
-        case mPI_ML: {
+        case mPH_MALLET: {
             modalBase = expmap(x[0], 100, 2000); modalT60 = expmap(x[1], 0.05f, 4.f);
             modalDamp = x[3];
             static const float wood[4] = {1.f, 3.99f, 10.65f, 21.f};
@@ -369,7 +369,7 @@ struct Voice {
         const float pitchMul = 1.f + tens * tensEnv;
         for (int i = 0; i < modes; ++i) {
             float t60 = modalT60 / (1.f + i * modalDamp * 2.f);
-            if (machine == mPI_ML && i == 0) t60 = modalT60 * (1.f + 2.f * modalRing);
+            if (machine == mPH_MALLET && i == 0) t60 = modalT60 * (1.f + 2.f * modalRing);
             setMode(i, modalBase * modalRatio[i] * pitchMul, t60, modalGain[i]);
         }
     }
@@ -482,8 +482,8 @@ struct Voice {
             penv *= pCoef;
             ph1 += f * isr; if (ph1 >= 1.f) ph1 -= 1.f;
             float s;
-            if (oscShape == 1 && machine != mGND_SN) { float q = ph1 + 0.25f; if (q >= 1.f) q -= 1.f; s = 1.f - 4.f * std::fabs(q - 0.5f); }
-            else if (oscShape == 2 && machine != mGND_SN) s = std::tanh(std::sin(kTwoPi * ph1) * 6.f);
+            if (oscShape == 1 && machine != mSINE) { float q = ph1 + 0.25f; if (q >= 1.f) q -= 1.f; s = 1.f - 4.f * std::fabs(q - 0.5f); }
+            else if (oscShape == 2 && machine != mSINE) s = std::tanh(std::sin(kTwoPi * ph1) * 6.f);
             else s = std::sin(kTwoPi * ph1);
             if (harm > 0.f) s = std::tanh(s * hg) * hn;
             if (wave > 0.f) {
@@ -535,7 +535,7 @@ struct Voice {
                 m += blepSquare(mph[k], dt);
             }
             float v;
-            if (machine == mTRX_CB) {
+            if (machine == mCOWBELL) {
                 v = applyOut(m * 0.5f);
                 const float e = (shrt * fastAmp + (1.f - shrt) * amp);
                 fastAmp *= fastCoef; amp *= ampCoef;
@@ -558,12 +558,12 @@ struct Voice {
             }
             out[i] = drive(v, drv);
         }
-        if (amp < 1e-4f && (machine != mTRX_CB || fastAmp < 1e-4f) && bellAmp * bellLvl < 1e-4f && t > attackS) active = false;
+        if (amp < 1e-4f && (machine != mCOWBELL || fastAmp < 1e-4f) && bellAmp * bellLvl < 1e-4f && t > attackS) active = false;
     }
 
     void renderNoise(float* out, int n)
     {
-        const bool shaker = (machine == mTRX_MA);
+        const bool shaker = (machine == mSHAKER);
         const float grainProb = grainRate * isr;
         const int crushHoldN = crush > 0.f ? 1 + (int)(crush * crush * 40.f) : 1;
         const float bits = crush > 0.f ? std::exp2(12.f - crush * 10.f) : 0.f;

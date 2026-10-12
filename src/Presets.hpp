@@ -2,9 +2,27 @@
 #pragma once
 #include "Random.hpp"
 #include <cstring>
+#include <algorithm>
 #include <initializer_list>
 
 namespace kn {
+
+// Convert the parameters of one track saved before 0.7 (36 params per track, filter base/width/Q at 12..14).
+inline void migrateFilterV1(float* trackParams)
+{
+    const float base = trackParams[12], width = trackParams[13];
+    const float top = std::min(127.f, base + width);
+    int type = 0; float cut = top;
+    if (base > 5.f && top >= 122.f) { type = 3; cut = base; }          // only the high-pass was doing something
+    else if (base > 5.f) { type = 2; cut = (base + top) * 0.5f; }      // band
+    trackParams[tpCUTOFF] = cut; trackParams[tpFTYPE] = (float)filterTypeValue(type);
+}
+inline int presetIndexV1(int idx)
+{
+    constexpr int oldTP = 36, oldGB = kTracks * oldTP;
+    if (idx < oldGB) return (idx / oldTP) * kTrackParams + idx % oldTP;
+    return kGlobalBase + (idx - oldGB);
+}
 
 struct PB { // preset builder
     float* v; Bank& b;
@@ -14,7 +32,7 @@ struct PB { // preset builder
             for (int p = 0; p < kTrackParams; ++p) tparam(v, t, p) = p >= 8 ? kFxDefaults[p - 8] : 0.f;
             b.machine[t] = mOFF; b.mute[t] = 0;
         }
-        for (int i = 0; i < 20; ++i) v[kGlobalBase + gECHO_TIME + i] = kMasterDefaults[i];
+        for (int i = 0; i < kMasterCount; ++i) v[kGlobalBase + gECHO_TIME + i] = kMasterDefaults[i];
         for (auto& p : b.patterns) p.clear();
     }
     // machine + synth params (-1 keeps the machine default)
@@ -65,10 +83,10 @@ struct PB { // preset builder
     }
 };
 
-static constexpr float kMlSemi = 2.447f;  // PI-ML pitch units per semitone
-static constexpr float kKsSemi = 2.022f;  // PI-KS
-static constexpr float kMtSemi = 3.08f;   // PI-MT
-static constexpr float kSnSemi = 2.13f;   // GND-SN
+static constexpr float kMlSemi = 2.447f;  // PHYS MALLET pitch units per semitone
+static constexpr float kKsSemi = 2.022f;  // PHYS STRING
+static constexpr float kMtSemi = 3.08f;   // PHYS METAL
+static constexpr float kSnSemi = 2.13f;   // SINE
 
 // --------------------------------------------------------------------------------------------
 static void presetInit(PB& b)
@@ -93,15 +111,15 @@ static void presetDefault(PB& b)
 
 static void presetElectro(PB& b)
 {
-    b.kit(0, mTRX_BD, {46, 70, 60, 35, 70, 0, 20, 30});
-    b.kit(1, mTRX_SD, {58, 35, 30, 20, 90, 70, 40, 45});
-    b.kit(2, mTRX_CP, {80, 45, 55, 55, 30, 70, 30, 15});
-    b.kit(3, mTRX_CH, {70, 20, 85, 90, 30, 64, 0, 0});
-    b.kit(4, mTRX_OH, {70, 55, 85, 90, 30, 64, 0, 0});
-    b.kit(5, mTRX_CB, {62, 45, 64, 70, 40, 70, 30, 20});
-    b.kit(6, mTRX_XT, {40, 60, 50, 40, 40, 5, 0, 10});
-    b.kit(7, mTRX_RS, {66, 18, 50, 80, 30, 20, 50, 20});
-    b.kit(8, mGND_SN, {30, 50, 30, 40, 70, 0, 0, 40}); b.fx(8, tpFLTW, 60); b.fx(8, tpFLTQ, 50);
+    b.kit(0, mKICK, {46, 70, 60, 35, 70, 0, 20, 30});
+    b.kit(1, mSNARE, {58, 35, 30, 20, 90, 70, 40, 45});
+    b.kit(2, mCLAP, {80, 45, 55, 55, 30, 70, 30, 15});
+    b.kit(3, mCLHAT, {70, 20, 85, 90, 30, 64, 0, 0});
+    b.kit(4, mOPHAT, {70, 55, 85, 90, 30, 64, 0, 0});
+    b.kit(5, mCOWBELL, {62, 45, 64, 70, 40, 70, 30, 20});
+    b.kit(6, mTOM, {40, 60, 50, 40, 40, 5, 0, 10});
+    b.kit(7, mRIM, {66, 18, 50, 80, 30, 20, 50, 20});
+    b.kit(8, mSINE, {30, 50, 30, 40, 70, 0, 0, 40}); b.fx(8, tpCUTOFF, 60); b.fx(8, tpRESO, 50);
     b.fx(2, tpREV, 35); b.fx(5, tpDEL, 30); b.fx(7, tpDEL, 25);
     b.choke(3, 1); b.choke(4, 1); // open hat cut by the closed hat
     b.g(gECHO_TIME, 64); b.g(gECHO_FB, 45); b.g(gREV_SIZE, 40);
@@ -130,14 +148,14 @@ static void presetElectro(PB& b)
 
 static void presetTechno(PB& b)
 {
-    b.kit(0, mTRX_BD, {50, 75, 40, 30, 50, 5, 10, 45}); b.fx(0, tpDIST, 15);
-    b.kit(1, mTRX_CP, {64, 55, 45, 50, 25, 90, 20, 10}); b.fx(1, tpREV, 45);
-    b.kit(2, mTRX_CH, {75, 18, 95, 95, 30, 60, 0, 0});
-    b.kit(3, mTRX_OH, {75, 50, 90, 90, 30, 60, 0, 0});
-    b.kit(4, mTRX_RS, {75, 15, 30, 90, 20, 15, 60, 10}); b.fx(4, tpDEL, 45);
-    b.kit(5, mPI_ML, {70, 45, 75, 40, 85, 50, 20, 0}); b.fx(5, tpDEL, 50); b.fx(5, tpREV, 40);
-    b.kit(6, mTRX_CY, {64, 70, 70, 70, 30, 70, 20, 0});
-    b.kit(7, mEFM_HH, {90, 20, 0, 64, 90, 100, 60, 100});
+    b.kit(0, mKICK, {50, 75, 40, 30, 50, 5, 10, 45}); b.fx(0, tpDIST, 15);
+    b.kit(1, mCLAP, {64, 55, 45, 50, 25, 90, 20, 10}); b.fx(1, tpREV, 45);
+    b.kit(2, mCLHAT, {75, 18, 95, 95, 30, 60, 0, 0});
+    b.kit(3, mOPHAT, {75, 50, 90, 90, 30, 60, 0, 0});
+    b.kit(4, mRIM, {75, 15, 30, 90, 20, 15, 60, 10}); b.fx(4, tpDEL, 45);
+    b.kit(5, mPH_MALLET, {70, 45, 75, 40, 85, 50, 20, 0}); b.fx(5, tpDEL, 50); b.fx(5, tpREV, 40);
+    b.kit(6, mCYMBAL, {64, 70, 70, 70, 30, 70, 20, 0});
+    b.kit(7, mFM_HAT, {90, 20, 0, 64, 90, 100, 60, 100});
     b.g(gECHO_TIME, 64); b.g(gECHO_FB, 60); b.g(gREV_SIZE, 70);
     b.row(0, 0, "x...x...x...x...");
     b.row(0, 1, "....x.......x...");
@@ -164,14 +182,14 @@ static void presetTechno(PB& b)
 
 static void presetDubTechno(PB& b)
 {
-    b.kit(0, mTRX_BD, {48, 65, 30, 30, 30, 0, 0, 10}); b.fx(0, tpFLTW, 90);
-    b.kit(1, mTRX_RS, {55, 25, 70, 50, 20, 20, 40, 0}); b.fx(1, tpDEL, 80); b.fx(1, tpREV, 40);
-    b.kit(2, mPI_MT, {60, 55, 40, 30, 60, 60, 40, 0}); b.fx(2, tpDEL, 90); b.fx(2, tpREV, 70);
-    b.fx(2, tpFLTF, 30); b.fx(2, tpFLTW, 50); b.fx(2, tpFLTQ, 30);
-    b.fx(2, tpLFOS, 15); b.fx(2, tpLFOD, 40); b.fx(2, tpLFOSH, 25); b.fx(2, tpLFODST, lfoDestValue(tpFLTW));
-    b.kit(3, mTRX_CH, {60, 25, 70, 60, 20, 64, 30, 0}); b.fx(3, tpVOL, 80);
-    b.kit(4, mGND_NS, {60, 0, 127, 70, 100, 0, 30, 0}); b.fx(4, tpVOL, 45);
-    b.kit(5, mTRX_SD, {50, 30, 20, 20, 60, 50, 40, 60}); b.fx(5, tpREV, 70);
+    b.kit(0, mKICK, {48, 65, 30, 30, 30, 0, 0, 10}); b.fx(0, tpCUTOFF, 90);
+    b.kit(1, mRIM, {55, 25, 70, 50, 20, 20, 40, 0}); b.fx(1, tpDEL, 80); b.fx(1, tpREV, 40);
+    b.kit(2, mPH_METAL, {60, 55, 40, 30, 60, 60, 40, 0}); b.fx(2, tpDEL, 90); b.fx(2, tpREV, 70);
+    b.fx(2, tpCUTOFF, 55); b.fx(2, tpFTYPE, filterTypeValue(2)); b.fx(2, tpRESO, 30);
+    b.fx(2, tpLFOS, 15); b.fx(2, tpLFOD, 40); b.fx(2, tpLFOSH, 25); b.fx(2, tpLFODST, lfoDestValue(tpCUTOFF));
+    b.kit(3, mCLHAT, {60, 25, 70, 60, 20, 64, 30, 0}); b.fx(3, tpVOL, 80);
+    b.kit(4, mNOISE, {60, 0, 127, 70, 100, 0, 30, 0}); b.fx(4, tpVOL, 45);
+    b.kit(5, mSNARE, {50, 30, 20, 20, 60, 50, 40, 60}); b.fx(5, tpREV, 70);
     b.g(gECHO_TIME, 76); b.g(gECHO_FB, 85); b.g(gECHO_LPF, 70); b.g(gECHO_HPF, 40); b.g(gECHO_WIDTH, 110);
     b.g(gREV_SIZE, 95); b.g(gREV_DAMP, 90); b.g(gREV_LEV, 80);
     b.row(0, 0, "x...x...x...x...");
@@ -194,12 +212,12 @@ static void presetDubTechno(PB& b)
 
 static void presetBreakbeat(PB& b)
 {
-    b.kit(0, mTRX_BD, {55, 55, 45, 25, 80, 5, 30, 50}); b.fx(0, tpSRR, 10);
-    b.kit(1, mTRX_SD, {62, 38, 40, 15, 100, 60, 60, 40}); b.fx(1, tpDIST, 20);
-    b.kit(2, mTRX_CH, {70, 22, 75, 70, 30, 64, 0, 20});
-    b.kit(3, mTRX_CY, {60, 85, 50, 60, 20, 70, 40, 10});
-    b.kit(4, mTRX_RS, {60, 20, 40, 70, 30, 20, 40, 20});
-    b.kit(5, mEFM_SD, {80, 25, 90, 25, 30, 50, 20, 80}); b.fx(5, tpVOL, 80);
+    b.kit(0, mKICK, {55, 55, 45, 25, 80, 5, 30, 50}); b.fx(0, tpSRR, 10);
+    b.kit(1, mSNARE, {62, 38, 40, 15, 100, 60, 60, 40}); b.fx(1, tpDIST, 20);
+    b.kit(2, mCLHAT, {70, 22, 75, 70, 30, 64, 0, 20});
+    b.kit(3, mCYMBAL, {60, 85, 50, 60, 20, 70, 40, 10});
+    b.kit(4, mRIM, {60, 20, 40, 70, 30, 20, 40, 20});
+    b.kit(5, mFM_SNARE, {80, 25, 90, 25, 30, 50, 20, 80}); b.fx(5, tpVOL, 80);
     b.g(gCMP_THR, 90); b.g(gCMP_RAT, 50); b.g(gDRIVE, 25);
     b.row(0, 0, "X.x.......xx....");
     b.row(0, 1, "....X..x.x..X..x");
@@ -222,13 +240,13 @@ static void presetBreakbeat(PB& b)
 
 static void presetDrillBass(PB& b)
 {
-    b.kit(0, mEFM_BD, {50, 50, 70, 25, 30, 32, 20, 10});
-    b.kit(1, mTRX_SD, {70, 30, 50, 15, 100, 75, 60, 35});
-    b.kit(2, mEFM_SD, {85, 20, 80, 20, 50, 60, 20, 90});
-    b.kit(3, mEFM_HH, {95, 15, 0, 64, 90, 110, 40, 100});
-    b.kit(4, mPI_KS, {30, 60, 60, 40, 50, 0, 40, 30}); b.fx(4, tpFLTW, 80); b.fx(4, tpFLTQ, 40);
-    b.kit(5, mTRX_CY, {64, 70, 60, 70, 30, 64, 30, 0});
-    b.kit(6, mPI_SD, {80, 30, 80, 50, 70, 40, 50, 20});
+    b.kit(0, mFM_KICK, {50, 50, 70, 25, 30, 32, 20, 10});
+    b.kit(1, mSNARE, {70, 30, 50, 15, 100, 75, 60, 35});
+    b.kit(2, mFM_SNARE, {85, 20, 80, 20, 50, 60, 20, 90});
+    b.kit(3, mFM_HAT, {95, 15, 0, 64, 90, 110, 40, 100});
+    b.kit(4, mPH_STRING, {30, 60, 60, 40, 50, 0, 40, 30}); b.fx(4, tpCUTOFF, 80); b.fx(4, tpRESO, 40);
+    b.kit(5, mCYMBAL, {64, 70, 60, 70, 30, 64, 30, 0});
+    b.kit(6, mPH_SNARE, {80, 30, 80, 50, 70, 40, 50, 20});
     b.g(gCMP_THR, 85); b.g(gCMP_RAT, 60);
     b.row(0, 0, "x.......x.x..... ..x.....x......x");
     b.row(0, 1, "....X.......X... ....X..x....Xxxx");
@@ -256,14 +274,14 @@ static void presetDrillBass(PB& b)
 
 static void presetIdm(PB& b)
 {
-    b.kit(0, mEFM_BD, {45, 40, 90, 20, 60, 70, 15, 40}); b.fx(0, tpSRR, 20);
-    b.kit(1, mEFM_RS, {80, 25, 80, 90, 15, 40, 10, 60}); b.fx(1, tpDEL, 40);
-    b.kit(2, mPI_KS, {60, 35, 90, 20, 30, 50, 80, 20}); b.fx(2, tpREV, 50);
-    b.kit(3, mGND_NS, {0, 0, 10, 90, 127, 40, 90, 0}); b.fx(3, tpPAN, 30);
-    b.kit(4, mEFM_HH, {100, 10, 60, 100, 100, 120, 30, 110}); b.fx(4, tpPAN, 100);
-    b.kit(5, mPI_MT, {90, 40, 90, 110, 50, 90, 100, 10}); b.fx(5, tpSRR, 40); b.fx(5, tpDEL, 50);
-    b.kit(6, mEFM_CB, {40, 30, 70, 70, 110, 90, 30, 40});
-    b.kit(7, mGND_SN, {20, 30, 100, 15, 90, 0, 0, 60}); b.fx(7, tpDIST, 40);
+    b.kit(0, mFM_KICK, {45, 40, 90, 20, 60, 70, 15, 40}); b.fx(0, tpSRR, 20);
+    b.kit(1, mFM_RIM, {80, 25, 80, 90, 15, 40, 10, 60}); b.fx(1, tpDEL, 40);
+    b.kit(2, mPH_STRING, {60, 35, 90, 20, 30, 50, 80, 20}); b.fx(2, tpREV, 50);
+    b.kit(3, mNOISE, {0, 0, 10, 90, 127, 40, 90, 0}); b.fx(3, tpPAN, 30);
+    b.kit(4, mFM_HAT, {100, 10, 60, 100, 100, 120, 30, 110}); b.fx(4, tpPAN, 100);
+    b.kit(5, mPH_METAL, {90, 40, 90, 110, 50, 90, 100, 10}); b.fx(5, tpSRR, 40); b.fx(5, tpDEL, 50);
+    b.kit(6, mFM_BELL, {40, 30, 70, 70, 110, 90, 30, 40});
+    b.kit(7, mSINE, {20, 30, 100, 15, 90, 0, 0, 60}); b.fx(7, tpDIST, 40);
     for (int t : {2, 5, 6}) { b.fx(t, tpLFOS, 90); b.fx(t, tpLFOD, 50); b.fx(t, tpLFOSH, 120); b.fx(t, tpLFODST, lfoDestValue(0)); }
     b.g(gECHO_TIME, 40); b.g(gECHO_FB, 70); b.g(gECHO_WIDTH, 127); b.g(gREV_SIZE, 50); b.g(gREV_GATE, 40);
     RandGen r(0xA17E);
@@ -297,12 +315,12 @@ static void presetIdm(PB& b)
 
 static void presetIndustrial(PB& b)
 {
-    b.kit(0, mPI_BD, {35, 70, 80, 70, 30, 70, 40, 90}); b.fx(0, tpDIST, 60);
-    b.kit(1, mEFM_CP, {60, 60, 80, 40, 110, 90, 70, 110}); b.fx(1, tpREV, 50);
-    b.kit(2, mPI_MT, {40, 60, 110, 100, 30, 100, 90, 60}); b.fx(2, tpDIST, 40);
-    b.kit(3, mGND_NS, {0, 0, 30, 60, 90, 60, 100, 60});
-    b.kit(4, mEFM_HH, {60, 20, 80, 30, 110, 70, 40, 60});
-    b.kit(5, mTRX_XT, {30, 50, 90, 30, 90, 40, 80, 100});
+    b.kit(0, mPH_KICK, {35, 70, 80, 70, 30, 70, 40, 90}); b.fx(0, tpDIST, 60);
+    b.kit(1, mFM_CLAP, {60, 60, 80, 40, 110, 90, 70, 110}); b.fx(1, tpREV, 50);
+    b.kit(2, mPH_METAL, {40, 60, 110, 100, 30, 100, 90, 60}); b.fx(2, tpDIST, 40);
+    b.kit(3, mNOISE, {0, 0, 30, 60, 90, 60, 100, 60});
+    b.kit(4, mFM_HAT, {60, 20, 80, 30, 110, 70, 40, 60});
+    b.kit(5, mTOM, {30, 50, 90, 30, 90, 40, 80, 100});
     b.g(gREV_SIZE, 80); b.g(gREV_GATE, 60); b.g(gCMP_THR, 80); b.g(gCMP_RAT, 60); b.g(gDRIVE, 30);
     b.row(0, 0, "X...x...X...x..x");
     b.row(0, 1, "....X.......X...");
@@ -324,13 +342,13 @@ static void presetIndustrial(PB& b)
 
 static void presetMinimal(PB& b)
 {
-    b.kit(0, mTRX_BD, {52, 45, 30, 20, 40, 0, 0, 10});
-    b.kit(1, mGND_SN, {110, 5, 60, 5, 0, 0, 0, 30}); b.fx(1, tpPAN, 40);
-    b.kit(2, mTRX_CL, {75, 15, 40, 80, 40, 0, 10, 0}); b.fx(2, tpPAN, 90); b.fx(2, tpDEL, 40);
-    b.kit(3, mTRX_MA, {5, 5, 25, 90, 110, 60, 80, 0});
-    b.kit(4, mTRX_RS, {70, 12, 30, 90, 10, 10, 70, 0}); b.fx(4, tpDEL, 30);
-    b.kit(5, mPI_ML, {75, 30, 90, 60, 100, 30, 0, 0}); b.fx(5, tpREV, 40);
-    b.kit(6, mTRX_CP, {50, 30, 40, 70, 30, 40, 30, 0}); b.fx(6, tpVOL, 80);
+    b.kit(0, mKICK, {52, 45, 30, 20, 40, 0, 0, 10});
+    b.kit(1, mSINE, {110, 5, 60, 5, 0, 0, 0, 30}); b.fx(1, tpPAN, 40);
+    b.kit(2, mCLAVE, {75, 15, 40, 80, 40, 0, 10, 0}); b.fx(2, tpPAN, 90); b.fx(2, tpDEL, 40);
+    b.kit(3, mSHAKER, {5, 5, 25, 90, 110, 60, 80, 0});
+    b.kit(4, mRIM, {70, 12, 30, 90, 10, 10, 70, 0}); b.fx(4, tpDEL, 30);
+    b.kit(5, mPH_MALLET, {75, 30, 90, 60, 100, 30, 0, 0}); b.fx(5, tpREV, 40);
+    b.kit(6, mCLAP, {50, 30, 40, 70, 30, 40, 30, 0}); b.fx(6, tpVOL, 80);
     b.g(gECHO_TIME, 48); b.g(gECHO_FB, 55);
     b.row(0, 0, "x...x...x...x...");
     b.row(0, 1, "..x..x.....x..x.");
@@ -354,12 +372,12 @@ static void presetMinimal(PB& b)
 
 static void presetLofi(PB& b)
 {
-    b.kit(0, mTRX_BD, {50, 50, 30, 30, 50, 10, 20, 30}); b.fx(0, tpSRR, 35); b.fx(0, tpFLTW, 80);
-    b.kit(1, mTRX_SD, {48, 35, 20, 20, 80, 45, 50, 40}); b.fx(1, tpSRR, 35); b.fx(1, tpFLTW, 85); b.fx(1, tpREV, 30);
-    b.kit(2, mTRX_CH, {55, 20, 60, 50, 20, 64, 10, 0}); b.fx(2, tpSRR, 30); b.fx(2, tpFLTW, 90);
-    b.kit(3, mPI_KS, {25, 50, 40, 60, 60, 0, 10, 10}); b.fx(3, tpFLTW, 70);
-    b.kit(4, mGND_NS, {0, 0, 127, 50, 70, 0, 60, 0}); b.fx(4, tpVOL, 35);
-    b.kit(5, mTRX_RS, {50, 15, 70, 50, 20, 20, 30, 0});
+    b.kit(0, mKICK, {50, 50, 30, 30, 50, 10, 20, 30}); b.fx(0, tpSRR, 35); b.fx(0, tpCUTOFF, 80);
+    b.kit(1, mSNARE, {48, 35, 20, 20, 80, 45, 50, 40}); b.fx(1, tpSRR, 35); b.fx(1, tpCUTOFF, 85); b.fx(1, tpREV, 30);
+    b.kit(2, mCLHAT, {55, 20, 60, 50, 20, 64, 10, 0}); b.fx(2, tpSRR, 30); b.fx(2, tpCUTOFF, 90);
+    b.kit(3, mPH_STRING, {25, 50, 40, 60, 60, 0, 10, 10}); b.fx(3, tpCUTOFF, 70);
+    b.kit(4, mNOISE, {0, 0, 127, 50, 70, 0, 60, 0}); b.fx(4, tpVOL, 35);
+    b.kit(5, mRIM, {50, 15, 70, 50, 20, 20, 30, 0});
     b.g(gEQ_HIGH, 50); b.g(gDRIVE, 30);
     b.row(0, 0, "x.......x.x.....");
     b.row(0, 1, "....x.......x...");
@@ -381,13 +399,13 @@ static void presetLofi(PB& b)
 
 static void presetBraindance(PB& b)
 {
-    b.kit(0, mEFM_BD, {48, 55, 60, 30, 50, 40, 25, 30});
-    b.kit(1, mEFM_SD, {70, 35, 80, 35, 60, 55, 25, 70});
-    b.kit(2, mEFM_HH, {85, 20, 30, 80, 90, 100, 50, 90});
-    b.kit(3, mEFM_CB, {60, 45, 50, 30, 60, 70, 40, 70});
-    b.kit(4, mGND_SN, {35, 45, 20, 30, 100, 0, 0, 50}); b.fx(4, tpFLTW, 55); b.fx(4, tpFLTQ, 70);
-    b.kit(5, mEFM_XT, {50, 50, 50, 40, 50, 40, 30, 40});
-    b.kit(6, mEFM_CY, {64, 70, 80, 30, 90, 90, 80, 70});
+    b.kit(0, mFM_KICK, {48, 55, 60, 30, 50, 40, 25, 30});
+    b.kit(1, mFM_SNARE, {70, 35, 80, 35, 60, 55, 25, 70});
+    b.kit(2, mFM_HAT, {85, 20, 30, 80, 90, 100, 50, 90});
+    b.kit(3, mFM_BELL, {60, 45, 50, 30, 60, 70, 40, 70});
+    b.kit(4, mSINE, {35, 45, 20, 30, 100, 0, 0, 50}); b.fx(4, tpCUTOFF, 55); b.fx(4, tpRESO, 70);
+    b.kit(5, mFM_TOM, {50, 50, 50, 40, 50, 40, 30, 40});
+    b.kit(6, mFM_CYMBAL, {64, 70, 80, 30, 90, 90, 80, 70});
     b.g(gECHO_TIME, 56); b.g(gECHO_FB, 50); b.g(gREV_SIZE, 50);
     b.row(0, 0, "x..x..x...x.x...");
     b.row(0, 1, "....X..x....X.x.");
@@ -411,14 +429,14 @@ static void presetBraindance(PB& b)
 
 static void presetPercussion(PB& b)
 {
-    b.kit(0, mPI_BD, {45, 50, 40, 30, 40, 50, 0, 0});
-    b.kit(1, mPI_ML, {70, 55, 60, 30, 20, 60, 50, 0}); b.fx(1, tpREV, 40);
-    b.kit(2, mTRX_XT, {80, 40, 20, 30, 50, 15, 0, 0});  // conga hi
-    b.kit(3, mTRX_XT, {62, 45, 20, 30, 50, 15, 0, 0});  // conga lo
-    b.kit(4, mTRX_CL, {70, 25, 50, 70, 40, 5, 10, 0});
-    b.kit(5, mTRX_MA, {15, 10, 30, 80, 110, 70, 90, 0});
-    b.kit(6, mTRX_CB, {70, 40, 60, 75, 50, 60, 20, 0});
-    b.kit(7, mPI_MT, {75, 60, 60, 50, 40, 60, 50, 0}); b.fx(7, tpREV, 60);
+    b.kit(0, mPH_KICK, {45, 50, 40, 30, 40, 50, 0, 0});
+    b.kit(1, mPH_MALLET, {70, 55, 60, 30, 20, 60, 50, 0}); b.fx(1, tpREV, 40);
+    b.kit(2, mTOM, {80, 40, 20, 30, 50, 15, 0, 0});  // conga hi
+    b.kit(3, mTOM, {62, 45, 20, 30, 50, 15, 0, 0});  // conga lo
+    b.kit(4, mCLAVE, {70, 25, 50, 70, 40, 5, 10, 0});
+    b.kit(5, mSHAKER, {15, 10, 30, 80, 110, 70, 90, 0});
+    b.kit(6, mCOWBELL, {70, 40, 60, 75, 50, 60, 20, 0});
+    b.kit(7, mPH_METAL, {75, 60, 60, 50, 40, 60, 50, 0}); b.fx(7, tpREV, 60);
     b.fx(0, tpVOL, 90); b.fx(1, tpVOL, 92);
     b.g(gREV_SIZE, 60); b.g(gVOLUME, 92);
     b.row(0, 0, "x.....x.x.......");
@@ -445,14 +463,14 @@ static void presetPercussion(PB& b)
 
 static void presetHouse(PB& b)
 {
-    b.kit(0, mTRX_BD, {48, 62, 35, 30, 45, 0, 5, 25});
-    b.kit(1, mTRX_CP, {64, 45, 50, 60, 30, 70, 30, 10}); b.fx(1, tpREV, 30);
-    b.kit(2, mTRX_CH, {72, 15, 90, 85, 25, 64, 0, 0});
-    b.kit(3, mTRX_OH, {72, 40, 88, 85, 25, 64, 0, 0});
-    b.kit(4, mTRX_RS, {70, 15, 40, 80, 20, 15, 50, 10});
-    b.kit(5, mTRX_MA, {8, 5, 25, 85, 110, 40, 80, 0}); b.fx(5, tpVOL, 80);
-    b.kit(6, mPI_ML, {66, 40, 70, 45, 75, 55, 30, 0}); b.fx(6, tpDEL, 45); b.fx(6, tpREV, 35);
-    b.kit(7, mGND_SN, {34, 45, 15, 30, 40, 0, 0, 30}); b.fx(7, tpFLTW, 70);
+    b.kit(0, mKICK, {48, 62, 35, 30, 45, 0, 5, 25});
+    b.kit(1, mCLAP, {64, 45, 50, 60, 30, 70, 30, 10}); b.fx(1, tpREV, 30);
+    b.kit(2, mCLHAT, {72, 15, 90, 85, 25, 64, 0, 0});
+    b.kit(3, mOPHAT, {72, 40, 88, 85, 25, 64, 0, 0});
+    b.kit(4, mRIM, {70, 15, 40, 80, 20, 15, 50, 10});
+    b.kit(5, mSHAKER, {8, 5, 25, 85, 110, 40, 80, 0}); b.fx(5, tpVOL, 80);
+    b.kit(6, mPH_MALLET, {66, 40, 70, 45, 75, 55, 30, 0}); b.fx(6, tpDEL, 45); b.fx(6, tpREV, 35);
+    b.kit(7, mSINE, {34, 45, 15, 30, 40, 0, 0, 30}); b.fx(7, tpCUTOFF, 70);
     b.g(gECHO_TIME, 68); b.g(gECHO_FB, 45); b.g(gREV_SIZE, 50);
     b.row(0, 0, "x...x...x...x...");
     b.row(0, 1, "....x.......x...");
@@ -483,12 +501,12 @@ static void presetHouse(PB& b)
 
 static void presetGarage(PB& b)
 {
-    b.kit(0, mTRX_BD, {50, 55, 40, 25, 60, 0, 10, 20});
-    b.kit(1, mTRX_SD, {60, 30, 30, 15, 90, 80, 50, 30}); b.fx(1, tpREV, 25);
-    b.kit(2, mTRX_CH, {78, 12, 95, 90, 20, 60, 0, 0});
-    b.kit(3, mTRX_RS, {72, 14, 40, 85, 25, 15, 55, 10});
-    b.kit(4, mGND_SN, {28, 70, 25, 30, 60, 0, 0, 40}); b.fx(4, tpFLTW, 60); b.fx(4, tpFLTQ, 40);
-    b.kit(5, mEFM_CB, {75, 25, 40, 20, 40, 60, 30, 90}); b.fx(5, tpDEL, 40);
+    b.kit(0, mKICK, {50, 55, 40, 25, 60, 0, 10, 20});
+    b.kit(1, mSNARE, {60, 30, 30, 15, 90, 80, 50, 30}); b.fx(1, tpREV, 25);
+    b.kit(2, mCLHAT, {78, 12, 95, 90, 20, 60, 0, 0});
+    b.kit(3, mRIM, {72, 14, 40, 85, 25, 15, 55, 10});
+    b.kit(4, mSINE, {28, 70, 25, 30, 60, 0, 0, 40}); b.fx(4, tpCUTOFF, 60); b.fx(4, tpRESO, 40);
+    b.kit(5, mFM_BELL, {75, 25, 40, 20, 40, 60, 30, 90}); b.fx(5, tpDEL, 40);
     b.row(0, 0, "x.......x.x.....");
     b.row(0, 1, "....x.......x...");
     b.row(0, 2, "..x...x...x...x.");
@@ -509,12 +527,12 @@ static void presetGarage(PB& b)
 
 static void presetFootwork(PB& b)
 {
-    b.kit(0, mTRX_BD, {44, 80, 60, 30, 50, 0, 20, 40});
-    b.kit(1, mTRX_CP, {50, 35, 35, 65, 30, 40, 20, 20});
-    b.kit(2, mTRX_CH, {80, 10, 95, 90, 20, 60, 0, 0});
-    b.kit(3, mTRX_XT, {55, 45, 40, 30, 50, 10, 0, 10});
-    b.kit(4, mTRX_RS, {75, 12, 40, 90, 20, 15, 50, 10});
-    b.kit(5, mPI_KS, {45, 45, 70, 30, 40, 0, 30, 20}); b.fx(5, tpDEL, 30);
+    b.kit(0, mKICK, {44, 80, 60, 30, 50, 0, 20, 40});
+    b.kit(1, mCLAP, {50, 35, 35, 65, 30, 40, 20, 20});
+    b.kit(2, mCLHAT, {80, 10, 95, 90, 20, 60, 0, 0});
+    b.kit(3, mTOM, {55, 45, 40, 30, 50, 10, 0, 10});
+    b.kit(4, mRIM, {75, 12, 40, 90, 20, 15, 50, 10});
+    b.kit(5, mPH_STRING, {45, 45, 70, 30, 40, 0, 30, 20}); b.fx(5, tpDEL, 30);
     b.row(0, 0, "x..x..x...x..x..x..x..x...x..x..");
     b.row(0, 1, "........x...............x.......");
     b.row(0, 2, "x.xxx.x.x.xxx.x.x.xxx.x.x.xxx.xx");
@@ -536,12 +554,12 @@ static void presetFootwork(PB& b)
 
 static void presetTrap(PB& b)
 {
-    b.kit(0, mGND_SN, {14, 100, 40, 40, 5, 0, 20, 50}); b.fx(0, tpDIST, 20); // 808 boom
-    b.kit(1, mTRX_SD, {66, 30, 30, 15, 100, 70, 50, 30}); b.fx(1, tpREV, 30);
-    b.kit(2, mTRX_CP, {80, 30, 30, 60, 30, 40, 20, 20});
-    b.kit(3, mTRX_CH, {85, 10, 95, 95, 20, 60, 0, 0});
-    b.kit(4, mTRX_OH, {80, 35, 90, 90, 20, 60, 0, 0});
-    b.kit(5, mTRX_BD, {55, 25, 50, 15, 80, 0, 20, 30});
+    b.kit(0, mSINE, {14, 100, 40, 40, 5, 0, 20, 50}); b.fx(0, tpDIST, 20); // 808 boom
+    b.kit(1, mSNARE, {66, 30, 30, 15, 100, 70, 50, 30}); b.fx(1, tpREV, 30);
+    b.kit(2, mCLAP, {80, 30, 30, 60, 30, 40, 20, 20});
+    b.kit(3, mCLHAT, {85, 10, 95, 95, 20, 60, 0, 0});
+    b.kit(4, mOPHAT, {80, 35, 90, 90, 20, 60, 0, 0});
+    b.kit(5, mKICK, {55, 25, 50, 15, 80, 0, 20, 30});
     b.g(gECHO_TIME, 48); b.g(gREV_SIZE, 50);
     b.row(0, 0, "x......x..x.....x.........x.....");
     b.melody(0, 0, 14, kSnSemi, {0, 0, 3, 0, -2});
@@ -566,12 +584,12 @@ static void presetTrap(PB& b)
 
 static void presetDembow(PB& b)
 {
-    b.kit(0, mTRX_BD, {50, 60, 40, 25, 60, 0, 10, 35});
-    b.kit(1, mTRX_SD, {62, 30, 25, 15, 95, 75, 45, 25});
-    b.kit(2, mTRX_RS, {70, 15, 50, 80, 20, 15, 50, 10});
-    b.kit(3, mTRX_CH, {75, 15, 90, 85, 25, 64, 0, 0});
-    b.kit(4, mTRX_XT, {70, 35, 30, 30, 40, 10, 0, 0});
-    b.kit(5, mTRX_MA, {8, 5, 20, 85, 110, 50, 90, 0});
+    b.kit(0, mKICK, {50, 60, 40, 25, 60, 0, 10, 35});
+    b.kit(1, mSNARE, {62, 30, 25, 15, 95, 75, 45, 25});
+    b.kit(2, mRIM, {70, 15, 50, 80, 20, 15, 50, 10});
+    b.kit(3, mCLHAT, {75, 15, 90, 85, 25, 64, 0, 0});
+    b.kit(4, mTOM, {70, 35, 30, 30, 40, 10, 0, 0});
+    b.kit(5, mSHAKER, {8, 5, 20, 85, 110, 50, 90, 0});
     b.row(0, 0, "x...x...x...x...");
     b.row(0, 1, "...x..x....x..x.");
     b.row(0, 2, "...x..x....x..x.");
@@ -591,12 +609,12 @@ static void presetDembow(PB& b)
 
 static void presetJungle(PB& b)
 {
-    b.kit(0, mTRX_BD, {52, 45, 45, 25, 80, 5, 30, 40}); b.fx(0, tpSRR, 15);
-    b.kit(1, mTRX_SD, {68, 32, 45, 15, 100, 65, 60, 35}); b.fx(1, tpSRR, 15);
-    b.kit(2, mTRX_CH, {72, 15, 85, 70, 20, 60, 0, 10}); b.fx(2, tpSRR, 15);
-    b.kit(3, mTRX_CY, {64, 80, 60, 60, 20, 70, 40, 0}); b.fx(3, tpSRR, 15);
-    b.kit(4, mGND_SN, {14, 110, 30, 50, 0, 0, 30, 30}); b.fx(4, tpVOL, 105);
-    b.kit(5, mPI_MT, {55, 70, 50, 80, 40, 70, 70, 0}); b.fx(5, tpDEL, 60); b.fx(5, tpREV, 60);
+    b.kit(0, mKICK, {52, 45, 45, 25, 80, 5, 30, 40}); b.fx(0, tpSRR, 15);
+    b.kit(1, mSNARE, {68, 32, 45, 15, 100, 65, 60, 35}); b.fx(1, tpSRR, 15);
+    b.kit(2, mCLHAT, {72, 15, 85, 70, 20, 60, 0, 10}); b.fx(2, tpSRR, 15);
+    b.kit(3, mCYMBAL, {64, 80, 60, 60, 20, 70, 40, 0}); b.fx(3, tpSRR, 15);
+    b.kit(4, mSINE, {14, 110, 30, 50, 0, 0, 30, 30}); b.fx(4, tpVOL, 105);
+    b.kit(5, mPH_METAL, {55, 70, 50, 80, 40, 70, 70, 0}); b.fx(5, tpDEL, 60); b.fx(5, tpREV, 60);
     b.g(gECHO_TIME, 72); b.g(gECHO_FB, 65); b.g(gREV_SIZE, 70); b.g(gCMP_THR, 90); b.g(gCMP_RAT, 50);
     b.row(0, 0, "x.x.......x..... ..x.......x.....");
     b.row(0, 1, "....x..x.x..x..x ....x..x.x..x.x.");
@@ -620,13 +638,13 @@ static void presetJungle(PB& b)
 static void presetPolyLab(PB& b)
 {
     // every track has its own length: the pattern keeps evolving for a long time
-    b.kit(0, mPI_BD, {42, 55, 50, 40, 40, 50, 0, 10});
-    b.kit(1, mPI_ML, {70, 45, 60, 35, 30, 60, 40, 0}); b.fx(1, tpDEL, 35); b.fx(1, tpPAN, 40);
-    b.kit(2, mPI_ML, {58, 50, 50, 35, 70, 30, 30, 0}); b.fx(2, tpDEL, 35); b.fx(2, tpPAN, 88);
-    b.kit(3, mTRX_CL, {72, 25, 50, 70, 40, 5, 10, 0});
-    b.kit(4, mTRX_MA, {10, 8, 25, 85, 110, 60, 80, 0});
-    b.kit(5, mPI_MT, {80, 60, 70, 60, 40, 70, 50, 0}); b.fx(5, tpREV, 60);
-    b.kit(6, mEFM_RS, {75, 18, 50, 70, 15, 20, 10, 30});
+    b.kit(0, mPH_KICK, {42, 55, 50, 40, 40, 50, 0, 10});
+    b.kit(1, mPH_MALLET, {70, 45, 60, 35, 30, 60, 40, 0}); b.fx(1, tpDEL, 35); b.fx(1, tpPAN, 40);
+    b.kit(2, mPH_MALLET, {58, 50, 50, 35, 70, 30, 30, 0}); b.fx(2, tpDEL, 35); b.fx(2, tpPAN, 88);
+    b.kit(3, mCLAVE, {72, 25, 50, 70, 40, 5, 10, 0});
+    b.kit(4, mSHAKER, {10, 8, 25, 85, 110, 60, 80, 0});
+    b.kit(5, mPH_METAL, {80, 60, 70, 60, 40, 70, 50, 0}); b.fx(5, tpREV, 60);
+    b.kit(6, mFM_RIM, {75, 18, 50, 70, 15, 20, 10, 30});
     b.g(gECHO_TIME, 56); b.g(gECHO_FB, 50); b.g(gREV_SIZE, 60);
     b.row(0, 0, "x...x...x...x...");          // 16
     b.row(0, 1, "x..x.x..x.x.");              // 12
@@ -653,12 +671,12 @@ static void presetPolyLab(PB& b)
 
 static void presetAmbient(PB& b)
 {
-    b.kit(0, mPI_BD, {38, 80, 20, 30, 70, 30, 0, 0}); b.fx(0, tpVOL, 90);
-    b.kit(1, mPI_MT, {60, 110, 30, 50, 50, 70, 60, 0}); b.fx(1, tpREV, 100); b.fx(1, tpDEL, 70);
-    b.kit(2, mPI_ML, {75, 100, 20, 20, 90, 40, 80, 0}); b.fx(2, tpREV, 90); b.fx(2, tpDEL, 60);
-    b.kit(3, mGND_NS, {90, 60, 110, 70, 90, 40, 0, 0}); b.fx(3, tpVOL, 60); b.fx(3, tpREV, 80);
-    b.fx(3, tpLFOS, 10); b.fx(3, tpLFOD, 60); b.fx(3, tpLFOSH, 25); b.fx(3, tpLFODST, lfoDestValue(tpFLTW));
-    b.kit(4, mPI_KS, {50, 100, 40, 50, 30, 10, 10, 0}); b.fx(4, tpREV, 70); b.fx(4, tpDEL, 50);
+    b.kit(0, mPH_KICK, {38, 80, 20, 30, 70, 30, 0, 0}); b.fx(0, tpVOL, 90);
+    b.kit(1, mPH_METAL, {60, 110, 30, 50, 50, 70, 60, 0}); b.fx(1, tpREV, 100); b.fx(1, tpDEL, 70);
+    b.kit(2, mPH_MALLET, {75, 100, 20, 20, 90, 40, 80, 0}); b.fx(2, tpREV, 90); b.fx(2, tpDEL, 60);
+    b.kit(3, mNOISE, {90, 60, 110, 70, 90, 40, 0, 0}); b.fx(3, tpVOL, 60); b.fx(3, tpREV, 80);
+    b.fx(3, tpLFOS, 10); b.fx(3, tpLFOD, 60); b.fx(3, tpLFOSH, 25); b.fx(3, tpLFODST, lfoDestValue(tpCUTOFF));
+    b.kit(4, mPH_STRING, {50, 100, 40, 50, 30, 10, 10, 0}); b.fx(4, tpREV, 70); b.fx(4, tpDEL, 50);
     b.g(gECHO_TIME, 100); b.g(gECHO_FB, 80); b.g(gECHO_LPF, 70); b.g(gECHO_WIDTH, 127);
     b.g(gREV_SIZE, 120); b.g(gREV_DAMP, 80); b.g(gREV_LEV, 90);
     b.row(0, 0, "x...............x..........");     // 27

@@ -19,10 +19,10 @@ enum Role { roKick, roSnare, roHat, roPerc, roLong };
 inline Role machineRole(int m)
 {
     switch (m) {
-    case mTRX_BD: case mEFM_BD: case mPI_BD: return roKick;
-    case mTRX_SD: case mEFM_SD: case mPI_SD: case mTRX_CP: case mEFM_CP: return roSnare;
-    case mTRX_CH: case mEFM_HH: case mTRX_MA: return roHat;
-    case mTRX_OH: case mTRX_CY: case mEFM_CY: case mPI_MT: case mGND_NS: return roLong;
+    case mKICK: case mFM_KICK: case mPH_KICK: return roKick;
+    case mSNARE: case mFM_SNARE: case mPH_SNARE: case mCLAP: case mFM_CLAP: return roSnare;
+    case mCLHAT: case mFM_HAT: case mSHAKER: return roHat;
+    case mOPHAT: case mCYMBAL: case mFM_CYMBAL: case mPH_METAL: case mNOISE: return roLong;
     default: return roPerc;
     }
 }
@@ -48,9 +48,12 @@ inline void randomizeSound(float* values, int t, int m, RandGen& r)
     tparam(values, t, tpAMF) = (float)r.range(20, 110);
     tparam(values, t, tpEQF) = (float)r.range(20, 110);
     tparam(values, t, tpEQG) = (float)clampi(64 + r.range(-20, 20), 0, 127);
-    tparam(values, t, tpFLTF) = r.chance(0.3f) ? (float)r.range(0, 50) : 0.f;
-    tparam(values, t, tpFLTW) = (float)r.range(70, 127);
-    tparam(values, t, tpFLTQ) = (float)r.range(0, 60);
+    {
+        const int ft = r.chance(0.7f) ? 0 : r.range(1, 4);
+        tparam(values, t, tpFTYPE) = (float)filterTypeValue(ft);
+        tparam(values, t, tpCUTOFF) = (float)(ft == 3 ? r.range(0, 60) : (ft == 0 ? r.range(70, 127) : r.range(40, 110)));
+        tparam(values, t, tpRESO) = (float)r.range(0, 60);
+    }
     tparam(values, t, tpSRR) = r.chance(0.15f) ? (float)r.range(10, 70) : 0.f;
     tparam(values, t, tpDIST) = r.chance(0.3f) ? (float)r.range(5, 60) : 0.f;
     tparam(values, t, tpVOL) = (float)r.range(85, 112);
@@ -74,6 +77,8 @@ inline void randomizeSound(float* values, int t, int m, RandGen& r)
             tparam(values, t, b + 1) = 0.f;
         }
         tparam(values, t, b + 5) = 0.f;
+        tparam(values, t, lfoParam(l, 6)) = r.chance(0.4f) ? 127.f : 0.f;   // sometimes locked to the tempo
+        tparam(values, t, lfoParam(l, 7)) = 0.f;
     }
 }
 
@@ -111,7 +116,7 @@ inline void randomizeSequence(Pattern& pat, int t, int machine, RandGen& r, floa
         if (r.chance(0.08f)) pat.micro[t][s] = (int8_t)r.range(-4, 4);
         // a few parameter locks for movement
         if (r.chance(0.18f)) pat.locks[t][s][r.chance(0.6f) ? 0 : 1] = (uint8_t)r.range(15, 115);
-        if (r.chance(0.06f)) pat.locks[t][s][tpFLTW] = (uint8_t)r.range(30, 100);
+        if (r.chance(0.06f)) pat.locks[t][s][tpCUTOFF] = (uint8_t)r.range(30, 100);
     }
 }
 
@@ -124,11 +129,11 @@ inline void randomizePattern(Pattern& pat, const Bank& kit, RandGen& r)
 // ---- everything: kit, master effects, current pattern ----
 inline void randomizeKit(float* values, Bank& kit, RandGen& r)
 {
-    static const int kicks[] = {mTRX_BD, mEFM_BD, mPI_BD};
-    static const int snares[] = {mTRX_SD, mEFM_SD, mPI_SD, mTRX_CP, mEFM_CP};
-    static const int hats[] = {mTRX_CH, mEFM_HH, mTRX_MA};
-    static const int any[] = {mTRX_XT, mTRX_RS, mTRX_CB, mTRX_OH, mTRX_CY, mTRX_CL, mEFM_XT, mEFM_RS, mEFM_CB,
-                              mEFM_CY, mPI_MT, mPI_ML, mPI_KS, mGND_SN, mGND_NS, mTRX_CP, mEFM_CP, mTRX_MA};
+    static const int kicks[] = {mKICK, mFM_KICK, mPH_KICK};
+    static const int snares[] = {mSNARE, mFM_SNARE, mPH_SNARE, mCLAP, mFM_CLAP};
+    static const int hats[] = {mCLHAT, mFM_HAT, mSHAKER};
+    static const int any[] = {mTOM, mRIM, mCOWBELL, mOPHAT, mCYMBAL, mCLAVE, mFM_TOM, mFM_RIM, mFM_BELL,
+                              mFM_CYMBAL, mPH_METAL, mPH_MALLET, mPH_STRING, mSINE, mNOISE, mCLAP, mFM_CLAP, mSHAKER};
     for (int t = 0; t < kTracks; ++t) {
         int m;
         if (t == 0 || t == 10) m = kicks[r.range(0, 2)];
