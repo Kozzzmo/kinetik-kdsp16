@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.3
+
+- **Echo and reverb models rebuilt so each one really sounds different**, and MOD now does something specific to
+  the model (its name changes with the model):
+  echo DIGITAL (clean, exact repeats; MOD = SPREAD), TAPE (wow, flutter, drift, saturation, hiss, darker at every
+  pass; MOD = WOW), BBD (dark and gritty, stereo chorus; MOD = CHORUS), PING-PONG (MOD = OFFSET, swung bounces),
+  LO-FI (telephone band, low sample rate, few bits; MOD = CRUSH);
+  reverb ROOM (short, strong early reflections; MOD = EARLY), PLATE (instant, dense, bright; MOD = BRIGHT),
+  HALL (long, wide, early field; MOD = MOTION), SPRING (a real "boing" tank loop; MOD = DRIP),
+  SHIMMER (long, rising an octave; MOD = SHIMMER). Each reverb model has its own decay range.
+
 ## 0.9.2
 
 - **Solo** button (S) next to mute on every track: when a track is soloed, only the soloed tracks play
