@@ -8,7 +8,7 @@ Sister product: **Kinetik KMSP-6** (mono synth), repository `Kozzzmo/kinetik-kms
 
 | File | Role |
 |---|---|
-| `Params.hpp` | constants (16 tracks, 64 steps, 16 patterns, 40 lockable params per track: 0–7 machine, 8–15 TREMOLO TREM RATE EQ FREQ EQ GAIN CUTOFF TYPE RESO CRUSH, 16–23 DRIVE LEVEL PAN DELAY REVERB ENV AMT ENV DEC VELOCITY, LFO 1/2 at 24/30, SYNC+PHASE at 36+2l via `lfoParam(l,k)`), machines (readable names: KICK, SNARE..., FM ..., PH ... = physical) and their 8 synth params, kit fields, conditions, ratchets, echo divisions, master params incl. ECHO/REVERB MODEL + MOD |
+| `Params.hpp` | constants (16 tracks, 128 steps, 16 patterns, 40 lockable params per track: 0–7 machine, 8–15 TREMOLO TREM RATE EQ FREQ EQ GAIN CUTOFF TYPE RESO CRUSH, 16–23 DRIVE LEVEL PAN DELAY REVERB ENV AMT ENV DEC VELOCITY, LFO 1/2 at 24/30, SYNC+PHASE at 36+2l via `lfoParam(l,k)`), machines (readable names: KICK, SNARE..., FM ..., PH ... = physical) and their 8 synth params, kit fields, conditions, ratchets, echo divisions, master params incl. ECHO/REVERB MODEL + MOD |
 | `MasterFx.hpp` | master echo (5 models) / reverb (5 models) / EQ / compressor / limiter — **identical in kinetik-kmsp6** |
 | `Bank.hpp` | patterns (trigs, locks, conditions, micro-timing, ratchets, per-track lengths), kit (machine, mute, kit fields); text serialization (`serializeBank` / `deserializeBank`); `applyCommand` (P M U K f l c m r T cl ct cp tr pc) |
 | `Voice.hpp` | drum machines (analog-style, FM, physical models, noise generators, SAMPLE = user sample per track) |

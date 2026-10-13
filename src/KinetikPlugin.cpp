@@ -45,7 +45,7 @@ protected:
     const char* getDescription() const override { return "16-track drum synthesizer with step sequencer and parameter locks"; }
     const char* getMaker() const override { return "Kinetik"; }
     const char* getLicense() const override { return "Proprietary"; }
-    uint32_t getVersion() const override { return d_version(0, 7, 1); }
+    uint32_t getVersion() const override { return d_version(0, 8, 0); }
 
     void initParameter(uint32_t index, Parameter& p) override
     {

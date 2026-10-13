@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8
+
+- **SAMPLE machine**: your own sounds, one per track. Drop a WAV or AIFF file on the window (on a track button
+  = that track; Windows and macOS) or click LOAD. TUNE, START, LENGTH, ATTACK, DECAY, REVERSE, LO-FI, DRIVE.
+  Samples are saved with the project and in user presets.
+- **128 steps** per track (8 pages).
+- **Multi-step editing**: each right-click adds a step to the selection; knobs and RATCH / COND / TIME edit all of them.
+- Randomizing a sound keeps the track's level, pan and sends; "everything" keeps the SAMPLE tracks.
+
 ## 0.7.1
 
 - Beta test: demo mode switched off (no silences, no licence needed). It comes back for the commercial release
