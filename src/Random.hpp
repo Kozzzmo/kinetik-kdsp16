@@ -41,6 +41,16 @@ inline void randomizeSound(float* values, int t, int m, RandGen& r)
         int v = r.chance(0.35f) ? r.range(5, 122) : clampi(def + r.range(-40, 40), 0, 127);
         tparam(values, t, p) = (float)v;
     }
+    if (m == mSAMPLE) {   // stay recognisable: near the original pitch, from near the start, mostly forwards
+        tparam(values, t, 0) = (float)clampi(64 + r.range(-12, 12), 0, 127);
+        tparam(values, t, 1) = r.chance(0.7f) ? 0.f : (float)r.range(0, 40);
+        tparam(values, t, 2) = (float)r.range(60, 127);
+        tparam(values, t, 3) = r.chance(0.8f) ? 0.f : (float)r.range(0, 40);
+        tparam(values, t, 4) = r.chance(0.5f) ? 127.f : (float)r.range(50, 126);
+        tparam(values, t, 5) = r.chance(0.15f) ? 127.f : 0.f;
+        tparam(values, t, 6) = r.chance(0.2f) ? (float)r.range(10, 80) : 0.f;
+        tparam(values, t, 7) = r.chance(0.3f) ? (float)r.range(0, 50) : 0.f;
+    }
     // decay: keep kicks/snares/hats from becoming endless drones
     if (role == roKick || role == roSnare) tparam(values, t, 1) = (float)r.range(25, 85);
     if (role == roHat) tparam(values, t, 1) = (float)r.range(5, 60);
@@ -132,6 +142,7 @@ inline void randomizeKit(float* values, Bank& kit, RandGen& r)
     static const int any[] = {mTOM, mRIM, mCOWBELL, mOPHAT, mCYMBAL, mCLAVE, mFM_TOM, mFM_RIM, mFM_BELL,
                               mFM_CYMBAL, mPH_METAL, mPH_MALLET, mPH_STRING, mSINE, mNOISE, mCLAP, mFM_CLAP, mSHAKER};
     for (int t = 0; t < kTracks; ++t) {
+        if (kit.machine[t] == mSAMPLE) { randomizeSound(values, t, mSAMPLE, r); kit.mute[t] = 0; continue; }   // keep the user's samples
         int m;
         if (t == 0 || t == 10) m = kicks[r.range(0, 2)];
         else if (t == 1 || t == 4) m = snares[r.range(0, 4)];

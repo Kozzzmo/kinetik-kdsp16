@@ -1,7 +1,9 @@
 #include "../src/Engine.hpp"
+#include "../src/Sample.hpp"
 #include <cstdio>
 #include <string>
 using namespace kn;
+static int fails = 0;
 // helper: run internal play, record trig times of tracks via LED rising edges at fine resolution
 static std::vector<std::pair<int,double>> run(Engine* e, double seconds, int block=64){
   std::vector<std::pair<int,double>> hits; std::vector<float> L(block),R(block); uint32_t prev=0; long frame=0;
@@ -58,5 +60,20 @@ int main(){
     e->trackParam[0][tpCUTOFF]=30; e->trackParam[0][tpFENV]=127; e->trackParam[0][tpFDEC]=50; NoteEvent ne{0,0,1.f,0};
     std::vector<float> L(48000),R(48000); for(int b=0;b+64<=48000;b+=64) e->process(&L[b],&R[b],64,Transport(),b==0?&ne:nullptr,b==0?1:0);
     auto zcr=[&](int a,int b2){int z=0; for(int i=a+1;i<b2;i++) if((L[i-1]<0)!=(L[i]<0)) z++; return z*48000.0/(2*(b2-a));};
-    printf("filter env: brightness (zcr) at start %.0f Hz, later %.0f Hz\n", zcr(200,2000), zcr(30000,40000)); }
+    // SAMPLE machine: plays the loaded sample, codec round trip, stops at the end
+  { Engine* e=new Engine(); e->init(48000); for(int t=0;t<kTracks;t++) e->bank.machine[t]=mOFF; e->bank.machine[0]=mSAMPLE;
+    for(int p=0;p<8;p++) e->trackParam[0][p]=kMachineDefs[mSAMPLE].def[p];
+    auto sd=std::make_shared<SampleData>(); sd->sr=44100; sd->name="test sine"; sd->pcm.resize(4410);
+    for(size_t i=0;i<sd->pcm.size();i++) sd->pcm[i]=0.5f*std::sin(6.2831853f*440.f*i/44100.f);
+    SamplePtr back; smp::decodeAll((std::string("0 ")+smp::encode(*sd)+"\n").c_str(),[&](int t,SamplePtr d){ if(t==0) back=d; });
+    bool rt = back && back->name=="test sine" && back->frames()==4410 && std::fabs(back->pcm[100]-sd->pcm[100])<1e-3f;
+    printf(rt?"ok   sample codec round trip\n":"FAIL sample codec round trip\n"); if(!rt) fails++;
+    e->samples[0]=back.get();
+    std::vector<float> L(480),R(480); Transport tp; float pk=0, tail=0;
+    e->audition(0,1.f);
+    for(int b=0;b<30;b++){ e->process(L.data(),R.data(),480,tp,nullptr,0); for(float x:L){ if(b<8) pk=std::max(pk,std::fabs(x)); else if(b>=15) tail=std::max(tail,std::fabs(x)); } }
+    printf((pk>0.05f && tail<0.02f)?"ok   sample plays and stops (peak %.2f)\n":"FAIL sample plays and stops (peak %.2f tail %.3f)\n",pk,tail); if(!(pk>0.05f && tail<0.02f)) fails++;
+    delete e; }
+  printf("filter env: brightness (zcr) at start %.0f Hz, later %.0f Hz\n", zcr(200,2000), zcr(30000,40000)); }
+  return fails;
 }

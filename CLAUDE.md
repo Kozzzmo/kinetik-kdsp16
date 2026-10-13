@@ -11,7 +11,10 @@ Sister product: **Kinetik KMSP-6** (mono synth), repository `Kozzzmo/kinetik-kms
 | `Params.hpp` | constants (16 tracks, 64 steps, 16 patterns, 40 lockable params per track: 0–7 machine, 8–15 TREMOLO TREM RATE EQ FREQ EQ GAIN CUTOFF TYPE RESO CRUSH, 16–23 DRIVE LEVEL PAN DELAY REVERB ENV AMT ENV DEC VELOCITY, LFO 1/2 at 24/30, SYNC+PHASE at 36+2l via `lfoParam(l,k)`), machines (readable names: KICK, SNARE..., FM ..., PH ... = physical) and their 8 synth params, kit fields, conditions, ratchets, echo divisions, master params incl. ECHO/REVERB MODEL + MOD |
 | `MasterFx.hpp` | master echo (5 models) / reverb (5 models) / EQ / compressor / limiter — **identical in kinetik-kmsp6** |
 | `Bank.hpp` | patterns (trigs, locks, conditions, micro-timing, ratchets, per-track lengths), kit (machine, mute, kit fields); text serialization (`serializeBank` / `deserializeBank`); `applyCommand` (P M U K f l c m r T cl ct cp tr pc) |
-| `Voice.hpp` | drum machines (analog-style, FM, physical models, noise generators) |
+| `Voice.hpp` | drum machines (analog-style, FM, physical models, noise generators, SAMPLE = user sample per track) |
+| `Sample.hpp` | SAMPLE machine data (mono float) + text codec (16-bit base64); plugin states `samples` (all tracks, saved with the project) and `smp` (UI → DSP, one track); the DSP swaps them in `run()` with a try-lock and frees old ones outside the audio thread |
+| `FileDrop.hpp/.cpp`, `FileDropMac.mm` | files dropped on the window (Windows OLE `IDropTarget`, macOS dragging methods added to the DPF view at run time; Linux: none) |
+| `third_party/dr_libs/dr_wav.h` | WAV / AIFF decoder (public domain / MIT-0), UI side only |
 | `Engine.hpp` | sequencer + voices + master FX, 4 output buses |
 | `KinetikPlugin.cpp` | DPF plugin glue: parameters, states, MIDI (notes 36–51 = tracks, or chromatic per track MIDI channel) |
 | `KinetikUI.cpp` | the whole UI (1180×720 canvas; pages SYNTH FILTER FX MIX LFO 1 LFO 2 TRACK, `pageParam` lists the knobs of each; the upper LCD draws a graphic per page via `drawPageGraphic` — the SYNTH page renders one hit with a private `Voice`; overlays: machine picker, presets, help, skins, save, LFO destination menu `ovDest`) |

@@ -2,6 +2,7 @@
 #pragma once
 #include "Dsp.hpp"
 #include "Params.hpp"
+#include "Sample.hpp"
 #include <cstring>
 #include <vector>
 #include <algorithm>
@@ -66,6 +67,11 @@ struct Voice {
     float modalRing = 0;
     float modalBase = 100, modalT60 = 1, modalDamp = 0.5f;
     float modalRatio[kModes] = {}, modalGain[kModes] = {};
+
+    // sample (the engine points this at the track's sample before each block)
+    const SampleData* sample = nullptr;
+    double sPos = 0, sStart = 0, sEnd = 0, sInc = 1;
+    float sTune = 0, sAtk = 0, sDec = 1.f, sAmp = 1.f, sLofi = 0, sHoldV = 0; bool sRev = false; int sHoldCnt = 0;
 
     // string
     std::vector<float> ks;
@@ -209,6 +215,18 @@ struct Voice {
         case mPH_KICK: case mPH_SNARE: case mPH_METAL: case mPH_MALLET:
             controlModal(x);
             break;
+        case mSAMPLE: {
+            sTune = (x[0] - 0.5f) * 48.f;                       // +-24 semitones
+            sAtk = x[3] * x[3] * 0.25f * sr;
+            sDec = x[4] >= 0.995f ? 1.f : decayCoef(expmap(x[4], 0.02f, 8.f), sr);
+            sRev = x[5] >= 0.5f;
+            sLofi = x[6]; drv = x[7]; gainNorm = 1.f;
+            const double frames = sample ? (double)sample->frames() : 0.0;
+            sStart = std::floor(x[1] * 0.98 * frames);
+            sEnd = sStart + std::max(16.0, (frames - sStart) * std::max(0.01f, x[2]));
+            if (sEnd > frames) sEnd = frames;
+            break;
+        }
         case mPH_STRING:
             controlString(x);
             break;
@@ -405,6 +423,10 @@ struct Voice {
             burstStart[i] = burstStart[i - 1] + (uint32_t)(clapSpacing * j);
         }
         if (fam == fString) startString();
+        if (fam == fSample) {
+            if (!sample || sEnd - sStart < 2.0) { active = false; return; }
+            sPos = sRev ? sEnd - 1.0 : sStart; sAmp = 1.f; sHoldCnt = 0;
+        }
         if (fam == fModal) updateModes();
     }
 
@@ -443,6 +465,7 @@ struct Voice {
         case fFM: renderFM(out, n); break;
         case fModal: renderModal(out, n); break;
         case fString: renderString(out, n); break;
+        case fSample: renderSample(out, n); break;
         default: std::memset(out, 0, sizeof(float) * n); active = false; return;
         }
         const float g = vel * gainNorm;
@@ -472,6 +495,31 @@ struct Voice {
         const float v = clickFilt.bp * clickAmp * clickLvl * 2.f;
         clickAmp *= clickCoef;
         return v;
+    }
+
+    void renderSample(float* out, int n)
+    {
+        const SampleData* s = sample;
+        const double frames = s ? (double)s->frames() : 0.0;
+        const double inc = s ? s->sr / sr * std::exp2((sTune) / 12.0) * pitchMul : 1.0;
+        const int hold = 1 + (int)(sLofi * sLofi * 15.f);
+        const float q = sLofi > 0.01f ? std::exp2(12.f - sLofi * 8.f) : 0.f;   // bits: 12 down to 4
+        for (int i = 0; i < n; ++i, ++t) {
+            if (!s || sPos < sStart || sPos >= sEnd || sPos >= frames - 1.0) {
+                std::memset(out + i, 0, sizeof(float) * (n - i)); active = false; return;
+            }
+            const size_t i0 = (size_t)sPos; const float fr = (float)(sPos - (double)i0);
+            float v = s->pcm[i0] + (s->pcm[i0 + 1] - s->pcm[i0]) * fr;
+            sPos += sRev ? -inc : inc;
+            if (hold > 1 || q > 0.f) {
+                if (--sHoldCnt <= 0) { sHoldCnt = hold; sHoldV = q > 0.f ? std::round(v * q) / q : v; }
+                v = sHoldV;
+            }
+            float e = 1.f;
+            if (t < (uint32_t)sAtk) e = (float)t / sAtk;
+            else { e = sAmp; sAmp *= sDec; if (sAmp < 1e-4f) { std::memset(out + i, 0, sizeof(float) * (n - i)); active = false; return; } }
+            out[i] = drive(v * e, drv);
+        }
     }
 
     void renderTone(float* out, int n)

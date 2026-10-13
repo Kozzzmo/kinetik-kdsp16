@@ -73,6 +73,7 @@ public:
     float trackParam[kTracks][kTrackParams];
     float global[kGlobalParams];
     Bank bank;               // audio-side copy (the plugin syncs it)
+    const SampleData* samples[kTracks] = {};   // SAMPLE machine data per track (owned by the plugin glue)
     bool fill = false;       // FILL condition state
 
     // outputs for the UI
@@ -130,6 +131,7 @@ public:
             v.setMachine(bank.machine[t]);
             v.fmQuant = bank.kit[t][kfFmq] != 0;
             v.oscShape = bank.kit[t][kfOsc];
+            v.sample = samples[t];
         }
 
         // ---- transport ----

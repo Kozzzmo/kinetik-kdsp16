@@ -114,7 +114,7 @@ static const uint8_t kMasterDefaults[kMasterCount] = {
 };
 
 // ---- machines ----
-enum Family { fOff, fTone, fSnare, fClap, fMetal, fShaker, fFM, fModal, fString, fNoise };
+enum Family { fOff, fTone, fSnare, fClap, fMetal, fShaker, fFM, fModal, fString, fNoise, fSample };
 
 struct MachineDef {
     const char* name;
@@ -128,7 +128,7 @@ enum MachineId {
     mSHAKER, mCLAVE,
     mFM_KICK, mFM_SNARE, mFM_TOM, mFM_CLAP, mFM_RIM, mFM_BELL, mFM_HAT, mFM_CYMBAL,
     mPH_KICK, mPH_SNARE, mPH_METAL, mPH_MALLET, mPH_STRING,
-    mSINE, mNOISE,
+    mSINE, mNOISE, mSAMPLE,
     kMachines
 };
 
@@ -160,6 +160,7 @@ static const MachineDef kMachineDefs[kMachines] = {
     {"PH STRING", fString,{"TUNE","DECAY","BRIGHT","PICK POS","DAMPING","STIFFNESS","NOISE","DRIVE"},    {64,70,70,50,40,0,50,0}},
     {"SINE", fTone,     {"TUNE","DECAY","SWEEP","SWEEP TIME","WAVE","ATTACK","HOLD","DRIVE"},            {64,60,0,30,0,0,0,0}},
     {"NOISE", fNoise,   {"ATTACK","HOLD","DECAY","LOW CUT","HIGH CUT","RESONANCE","CRUSH","DRIVE"},      {0,0,60,0,127,0,0,0}},
+    {"SAMPLE", fSample, {"TUNE","START","LENGTH","ATTACK","DECAY","REVERSE","LO-FI","DRIVE"},             {64,0,127,0,127,0,0,0}},
 };
 
 static const uint8_t kDefaultKit[kTracks] = {

@@ -273,6 +273,16 @@ static const MachineHelp kMachineHelp[kMachines] = {
       "Resonance of both filters.",
       "Crush: sample-and-hold + bit reduction.",
       "Soft clipping."}},
+    // SAMPLE
+    {"Plays your own sound: drop a WAV or AIFF file on the window (or on a track button), or click LOAD. Up to 20 seconds, played mono; saved with the project and in presets.",
+     {"Tune in semitones (64 = original pitch, +-24).",
+      "Start point inside the sample.",
+      "Length: how much of the sample plays after the start point.",
+      "Attack: fade-in time.",
+      "Decay: fade-out time (maximum = the sample plays to its end).",
+      "Reverse: plays backwards (right half of the knob).",
+      "Lo-fi: lower sample rate and fewer bits.",
+      "Drive: saturation."}},
 };
 
 // help for track filter / effects / mix / lfo parameters (index = param - 8)

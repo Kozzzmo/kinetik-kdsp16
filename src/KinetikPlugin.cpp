@@ -29,7 +29,7 @@ class KinetikPlugin : public Plugin
 {
 public:
     KinetikPlugin()
-        : Plugin(kTotalParams, 0, 3)
+        : Plugin(kTotalParams, 0, 5)
     {
         engine.reset(new Engine());
         master.reset(new Bank());
@@ -112,10 +112,18 @@ protected:
             state.key = "cmd";
             state.defaultValue = "";
             state.label = "Edit command";
-        } else {
+        } else if (index == 2) {
             state.key = "skin";          // interface skin, saved with the project
             state.defaultValue = "";
             state.label = "Interface skin";
+        } else if (index == 3) {
+            state.key = "samples";       // every track's SAMPLE machine data, saved with the project
+            state.defaultValue = "";
+            state.label = "Samples";
+        } else {
+            state.key = "smp";           // the UI loaded (or removed) one track's sample
+            state.defaultValue = "";
+            state.label = "Sample command";
         }
     }
 
@@ -146,12 +154,31 @@ protected:
             return String(serializeBank(*master).c_str());
         }
         if (std::strcmp(key, "skin") == 0) return skinState;
+        if (std::strcmp(key, "samples") == 0) {
+            std::lock_guard<std::mutex> lk(masterMutex);
+            SamplePtr cur[kTracks];
+            for (int t = 0; t < kTracks; ++t) cur[t] = smpPend[t] ? smpPend[t] : smpLive[t];
+            return String(smp::encodeAll(cur, kTracks).c_str());
+        }
         return String("");
     }
 
     void setState(const char* key, const char* value) override
     {
         if (std::strcmp(key, "skin") == 0) { skinState = value ? value : ""; return; }
+        if (std::strcmp(key, "samples") == 0 || std::strcmp(key, "smp") == 0) {
+            const bool all = key[1] == 'a';
+            if (!all && !(value && *value)) return;
+            std::lock_guard<std::mutex> lk(masterMutex);
+            for (int t = 0; t < kTracks; ++t) smpGrave[t].reset();   // free what the audio thread released
+            if (all) for (int t = 0; t < kTracks; ++t) { smpPend[t].reset(); smpSet[t] = true; }   // a full set replaces everything
+            smp::decodeAll(value ? value : "", [this](int t, SamplePtr d) {
+                if (t < 0 || t >= kTracks) return;
+                smpPend[t] = std::move(d); smpSet[t] = true;
+            });
+            smpDirty.store(true);
+            return;
+        }
         if (std::strcmp(key, "bank") == 0) {
             std::lock_guard<std::mutex> lk(masterMutex);
             if (deserializeBank(*master, value)) dirty.store(0xFFFFu | kKitBit);
@@ -221,6 +248,22 @@ protected:
                 }
             }
         }
+        // install new samples (the old ones are freed later, outside the audio thread)
+        if (smpDirty.load(std::memory_order_acquire)) {
+            std::unique_lock<std::mutex> lk(masterMutex, std::try_to_lock);
+            if (lk.owns_lock()) {
+                bool left = false;
+                for (int t = 0; t < kTracks; ++t) {
+                    if (!smpSet[t]) continue;
+                    if (smpGrave[t]) { left = true; continue; }        // wait until the previous one is freed
+                    smpGrave[t] = std::move(smpLive[t]);
+                    smpLive[t] = std::move(smpPend[t]);
+                    smpSet[t] = false;
+                    engine->samples[t] = smpLive[t].get();
+                }
+                smpDirty.store(left);
+            }
+        }
         engine->fill = fillFlag.load();
         const uint32_t aud = auditionMask.exchange(0);
         for (int t = 0; t < kTracks; ++t) if (aud & (1u << t)) engine->audition(t, 1.f);
@@ -288,6 +331,10 @@ private:
     uint64_t demoPos = 0; float demoGain = 1.f;
     static constexpr const char* kProductCode = "KDSP-16";
     String skinState;
+    // SAMPLE machine data: pending (from setState), live (used by the engine), grave (freed later)
+    SamplePtr smpPend[kTracks], smpLive[kTracks], smpGrave[kTracks];
+    bool smpSet[kTracks] = {};
+    std::atomic<bool> smpDirty{false};
     std::vector<NoteEvent> notes;
 
     DISTRHO_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(KinetikPlugin)

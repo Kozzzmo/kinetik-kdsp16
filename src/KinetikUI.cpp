@@ -9,6 +9,10 @@
 #include "License.hpp"
 #include "MasterFx.hpp"
 #include "Voice.hpp"
+#include "Sample.hpp"
+#include "FileDrop.hpp"
+#define DR_WAV_IMPLEMENTATION
+#include "third_party/dr_libs/dr_wav.h"
 #include <cstdlib>
 #include <algorithm>
 #include <dirent.h>
@@ -71,7 +75,11 @@ public:
         setSkin(sk, false);
         if (zm != 100) setSize((uint)std::lround(W * baseScale() * zm / 100.0), (uint)std::lround(H * baseScale() * zm / 100.0));
         viewDirty = false;
+        // files dropped on the window: samples (SAMPLE machine) or a licence file
+        dropToken = fileDropAttach(getWindow().getNativeWindowHandle(),
+                                   [this](const std::string& path, double fx, double fy) { fileDropped(path, fx * W, fy * H); });
     }
+    ~KinetikUI() override { fileDropDetach(dropToken); }
 
     // ------------------------------------------------------------------ skins
     static std::string viewFile()
@@ -127,6 +135,12 @@ protected:
 
     void stateChanged(const char* key, const char* value) override
     {
+        if (std::strcmp(key, "samples") == 0) {
+            for (auto& sp : uiSmp) sp.reset();
+            smp::decodeAll(value ? value : "", [this](int t, SamplePtr d) { if (t >= 0 && t < kTracks) uiSmp[t] = std::move(d); });
+            repaint();
+            return;
+        }
         if (std::strcmp(key, "bank") == 0) { deserializeBank(*bank, value); repaint(); }
         if (std::strcmp(key, "skin") == 0 && value && *value) {
             int sk = kDefaultSkin, zm = 0;
@@ -230,6 +244,15 @@ protected:
             std::snprintf(b, sizeof(b), "%c%d", iv < 64 ? 'L' : 'R', std::abs(iv - 64)); return b;
         }
         if (p == tpEQG || p == tpFENV) { std::snprintf(b, sizeof(b), "%+d", iv - 64); return b; }
+        if (p < 8 && machineOf(t) == mSAMPLE) {
+            switch (p) {
+            case 0: { const int st = (int)std::lround((v / 127.f - 0.5f) * 48.f); if (st == 0) return "0 ST"; std::snprintf(b, sizeof(b), "%+d ST", st); return b; }
+            case 1: case 2: std::snprintf(b, sizeof(b), "%d%%", (int)std::lround(v / 127.f * 100.f)); return b;
+            case 4: if (iv >= 127) return "FULL"; break;
+            case 5: return iv >= 64 ? "ON" : "OFF";
+            default: break;
+            }
+        }
         if (p == tpCUTOFF) return hzText(cutoffHz(v));
         if (p == tpEQF) return hzText(expmap(v / 127.f, 40.f, 16000.f));
         if (p == tpAMF) return hzText(expmap(v / 127.f, 0.5f, 2000.f));
@@ -276,6 +299,8 @@ protected:
     R machPrev() const { return {150.f, 156.f, 26.f, 26.f}; }
     R machName() const { return {178.f, 156.f, 130.f, 26.f}; }
     R machNext() const { return {310.f, 156.f, 26.f, 26.f}; }
+    R smpLoadBtn() const { return {596.f, 156.f, 94.f, 24.f}; }
+    bool showSmpLoad() const { return page == pgSynth && lockStep < 0 && machineOf(selTrack) == mSAMPLE; }
     R lockClear() const { return {596.f, 156.f, 94.f, 24.f}; }
     R pageTab(int i) const { return {20.f + i * 97.4f, 304.f, 94.f, 28.f}; }
     R knob(int k) const { return {20.f + k * 85.f, 340.f, 85.f, 120.f}; }
@@ -681,18 +706,22 @@ protected:
 
     // ---- SYNTH: the sound of one hit, rendered by a private copy of the voice
     Voice hitVoice; bool hitReady = false; float hitKey[11] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+    const SampleData* hitSample = nullptr;
     std::vector<float> hitMin, hitMax; float hitSeconds = 0.5f;
     void updateHit(int cols)
     {
         float key[11];
         for (int i = 0; i < 8; ++i) key[i] = std::round(shownValue(i));
         key[8] = (float)machineOf(selTrack); key[9] = (float)bank->kit[selTrack][kfFmq]; key[10] = (float)bank->kit[selTrack][kfOsc];
-        if (hitReady && std::equal(key, key + 11, hitKey) && (int)hitMin.size() == cols) return;
+        const SampleData* hs = uiSmp[selTrack].get();
+        if (hitReady && std::equal(key, key + 11, hitKey) && (int)hitMin.size() == cols && hs == hitSample) return;
         std::copy(key, key + 11, hitKey);
+        hitSample = hs;
         if (!hitReady) { hitVoice.init(48000.f); hitReady = true; }
         hitVoice.machine = -1;
         hitVoice.setMachine((int)key[8]);
         hitVoice.fmQuant = key[9] > 0.5f; hitVoice.oscShape = (int)key[10];
+        hitVoice.sample = hs;
         hitVoice.rng.s = 0x1234567u;
         float eff[kLockable];
         for (int p = 0; p < kLockable; ++p) eff[p] = p < 8 ? key[p] : 0.f;
@@ -722,6 +751,12 @@ protected:
         lcdGrid(g, 8, 4);
         beginPath(); rect(g.x, g.cy(), g.w, 1.f); fillColor(withAlpha(th->lcdDim, 0.5f)); fill();
         if (machineOf(selTrack) == mOFF) { label(g.cx(), g.cy(), "TRACK OFF", 14.f, th->lcdDim); return; }
+        if (machineOf(selTrack) == mSAMPLE && !uiSmp[selTrack]) {
+            useFont(fnSerifItalic);
+            label(g.cx(), g.cy() - 10, "Drop a sample here", 24.f, th->lcdText, ALIGN_CENTER | ALIGN_MIDDLE, fnSerifItalic);
+            label(g.cx(), g.cy() + 20, "OR CLICK LOAD  -  WAV / AIFF", 9.5f, th->lcdDim, ALIGN_CENTER | ALIGN_MIDDLE, fnMono);
+            return;
+        }
         const int cols = (int)g.w / 2;
         updateHit(cols);
         float pk = 0.02f;
@@ -739,6 +774,11 @@ protected:
         if (hitSeconds < 1.f) std::snprintf(b, sizeof(b), "%d ms", (int)std::lround(hitSeconds * 1000.f));
         else std::snprintf(b, sizeof(b), "%.1f s", hitSeconds);
         label(g.x + g.w - 4, g.y + g.h - 8, b, 9.5f, th->lcdDim, ALIGN_RIGHT | ALIGN_MIDDLE, fnMono);
+        if (machineOf(selTrack) == mSAMPLE && uiSmp[selTrack]) {
+            const SampleData& sd = *uiSmp[selTrack];
+            char nb[96]; std::snprintf(nb, sizeof(nb), "%s  -  %.2f s", sd.name.c_str(), sd.frames() / sd.sr);
+            label(g.x + 4, g.y + 8, nb, 10.f, th->lcdText, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
+        }
     }
 
     static float svfMag(int type, float f, float fc, float q)
@@ -1116,6 +1156,12 @@ protected:
             else std::snprintf(b, sizeof(b), "LOCK STEP %02d", lockStep + 1);
             label(586, 169, b, 11.5f, th->lock, ALIGN_RIGHT | ALIGN_MIDDLE);
             frame(lockClear(), th->lock); label(lockClear().cx(), lockClear().cy() + 1, "CLEAR", 10.f, th->lock);
+        } else if (smpMsgTicks > 0) {
+            label(688, 169, smpMsg.c_str(), 10.f, th->lock, ALIGN_RIGHT | ALIGN_MIDDLE);
+        } else if (showSmpLoad()) {
+            box(smpLoadBtn(), th->lcdText, 3.f);
+            label(smpLoadBtn().cx(), smpLoadBtn().cy() + 1, "LOAD", 10.5f, th->lcdBg);
+            label(586, 169, "or drop a file", 10.f, th->lcdDim, ALIGN_RIGHT | ALIGN_MIDDLE);
         } else if (rec) {
             iconLabel(688, 169, icRec, recording() ? "REC: turn knobs to record" : "REC armed: start playback", 10.f,
                       th->logo == lgRiso ? th->text : th->accent, th->fontLabel, ALIGN_RIGHT);
@@ -1247,7 +1293,7 @@ protected:
 
     R pickerCell(int m) const
     {
-        static const int col[kMachines] = {3, 0,0,0,0,0,0,0,0,0,0,0, 1,1,1,1,1,1,1,1, 2,2,2,2,2, 3,3};
+        static const int col[kMachines] = {3, 0,0,0,0,0,0,0,0,0,0,0, 1,1,1,1,1,1,1,1, 2,2,2,2,2, 3,3,3};
         int row = 0;
         for (int i = 0; i < m; ++i) if (col[i] == col[m]) ++row;
         return {120.f + col[m] * 240.f, 160.f + row * 34.f, 220.f, 30.f};
@@ -1466,6 +1512,8 @@ protected:
             if (i == kGlobalBase + gPLAY || i == kGlobalBase + gPATTERN) continue;
             std::fprintf(fp, "V %d %.4f\n", i, values[i]);
         }
+        for (int t = 0; t < kTracks; ++t)
+            if (uiSmp[t]) std::fprintf(fp, "SMP %d %s\n", t, smp::encode(*uiSmp[t]).c_str());
         std::fprintf(fp, "BANK\n%s", serializeBank(*bank).c_str());
         std::fclose(fp);
         return true;
@@ -1484,6 +1532,7 @@ protected:
         std::unique_ptr<Bank> nb(new Bank(*bank));
         int patIdx = 0;
         const bool v1 = all.rfind("KDSP16-PRESET 1", 0) == 0;   // before 0.7: 36 params per track, old filter
+        std::string smpText;
         const size_t bankPos = all.find("\nBANK\n");
         const std::string head = all.substr(0, bankPos == std::string::npos ? all.size() : bankPos);
         size_t st = 0;
@@ -1496,6 +1545,7 @@ protected:
                 if (idx < kGlobalBase + gOUT_STEP) nv[idx] = v;
             }
             std::sscanf(line.c_str(), "PATTERN %d", &patIdx);
+            if (line.rfind("SMP ", 0) == 0) { smpText += line.substr(4); smpText += "\n"; }
             st = e + 1;
         }
         if (v1) for (int t = 0; t < kTracks; ++t) migrateFilterV1(&nv[t * kTrackParams]);
@@ -1510,6 +1560,11 @@ protected:
         }
         applyState(nv.data(), nb.get());
         if (withPatterns) { setParamGesture(kGlobalBase + gPATTERN, (float)clampi(patIdx, 0, kPatterns - 1)); stepPg = 0; }
+        if (!smpText.empty()) {     // the preset carries samples: they replace the current ones
+            for (auto& sp : uiSmp) sp.reset();
+            smp::decodeAll(smpText.c_str(), [this](int t, SamplePtr d) { if (t >= 0 && t < kTracks) uiSmp[t] = std::move(d); });
+            setState("samples", smp::encodeAll(uiSmp, kTracks).c_str());
+        }
         clearSel();
         presetName = name;
     }
@@ -1647,8 +1702,101 @@ protected:
         applyLicenseText(t);
     }
 
+    // ------------------------------------------------------------------ SAMPLE machine: loading files
+    static bool readWholeFile(const std::string& path, std::vector<uint8_t>& out)
+    {
+#ifdef _WIN32
+        // UTF-8 -> UTF-16 (file names with accents)
+        std::wstring w;
+        for (size_t i = 0; i < path.size();) {
+            const unsigned char c = (unsigned char)path[i];
+            uint32_t cp = c; size_t n = 1;
+            if (c >= 0xF0 && i + 3 < path.size() + 0) { cp = (c & 7u) << 18 | ((unsigned char)path[i + 1] & 63u) << 12 | ((unsigned char)path[i + 2] & 63u) << 6 | ((unsigned char)path[i + 3] & 63u); n = 4; }
+            else if (c >= 0xE0 && i + 2 < path.size()) { cp = (c & 15u) << 12 | ((unsigned char)path[i + 1] & 63u) << 6 | ((unsigned char)path[i + 2] & 63u); n = 3; }
+            else if (c >= 0xC0 && i + 1 < path.size()) { cp = (c & 31u) << 6 | ((unsigned char)path[i + 1] & 63u); n = 2; }
+            if (cp >= 0x10000) { cp -= 0x10000; w += (wchar_t)(0xD800 + (cp >> 10)); w += (wchar_t)(0xDC00 + (cp & 0x3FF)); }
+            else w += (wchar_t)cp;
+            i += n;
+        }
+        FILE* fp = _wfopen(w.c_str(), L"rb");
+#else
+        FILE* fp = std::fopen(path.c_str(), "rb");
+#endif
+        if (!fp) return false;
+        std::fseek(fp, 0, SEEK_END);
+        const long n = std::ftell(fp);
+        std::fseek(fp, 0, SEEK_SET);
+        if (n <= 0 || n > 200L * 1024 * 1024) { std::fclose(fp); return false; }
+        out.resize((size_t)n);
+        const size_t got = std::fread(out.data(), 1, (size_t)n, fp);
+        std::fclose(fp);
+        return got == (size_t)n;
+    }
+    static std::string baseName(const std::string& p)
+    {
+        const size_t a = p.find_last_of("/\\");
+        std::string n = a == std::string::npos ? p : p.substr(a + 1);
+        const size_t d = n.find_last_of('.');
+        return d == std::string::npos ? n : n.substr(0, d);
+    }
+    bool loadSampleFile(const std::string& path, int t)
+    {
+        std::vector<uint8_t> bytes;
+        unsigned int ch = 0, rate = 0; drwav_uint64 frames = 0;
+        float* pcm = nullptr;
+        if (readWholeFile(path, bytes))
+            pcm = drwav_open_memory_and_read_pcm_frames_f32(bytes.data(), bytes.size(), &ch, &rate, &frames, nullptr);
+        if (pcm == nullptr || ch == 0 || rate == 0 || frames == 0) {
+            if (pcm) drwav_free(pcm, nullptr);
+            smpMsg = "Could not read " + baseName(path) + " (WAV or AIFF only)"; smpMsgTicks = 150; repaint();
+            return false;
+        }
+        auto d = std::make_shared<SampleData>();
+        d->sr = rate;
+        d->name = baseName(path);
+        const drwav_uint64 n = std::min<drwav_uint64>(frames, (drwav_uint64)(kMaxSampleSeconds * rate));
+        d->pcm.resize((size_t)n);
+        for (drwav_uint64 i = 0; i < n; ++i) {
+            float v = 0.f;
+            for (unsigned int c = 0; c < ch; ++c) v += pcm[i * ch + c];
+            d->pcm[(size_t)i] = v / (float)ch;
+        }
+        drwav_free(pcm, nullptr);
+        uiSmp[t] = d;
+        setState("smp", (std::to_string(t) + " " + smp::encode(*d)).c_str());
+        if (machineOf(t) != mSAMPLE) setMachine(t, mSAMPLE);
+        selTrack = t;
+        page = pgSynth;
+        smpMsg.clear();
+        repaint();
+        return true;
+    }
+    void fileDropped(const std::string& path, double x, double y)
+    {
+        std::string ext = path.substr(path.find_last_of('.') == std::string::npos ? path.size() : path.find_last_of('.'));
+        for (auto& c : ext) c = (char)std::tolower((unsigned char)c);
+        if (ext == ".kinetik-license" || ext == ".txt") {
+            std::string text;
+            if (lic::readFile(path, text)) { overlay = ovLicense; applyLicenseText(text); }
+            return;
+        }
+        int t = selTrack;                                  // dropped on a track button: that track
+        for (int i = 0; i < kTracks; ++i) if (trackBtn(i).in((float)x, (float)y)) t = i;
+        overlay = ovNone;
+        loadSampleFile(path, t);
+    }
+    void openSampleBrowser()
+    {
+        FileBrowserOptions o;
+        o.title = "Load a sample (WAV or AIFF)";
+        browseSample = true;
+        if (!openFileBrowser(o)) { browseSample = false; smpMsg = "File browser not available: drop a file on the window"; smpMsgTicks = 150; }
+        repaint();
+    }
+
     void uiFileBrowserSelected(const char* filename) override
     {
+        if (browseSample) { browseSample = false; if (filename != nullptr) loadSampleFile(filename, selTrack); return; }
         if (filename == nullptr) return;
         std::string text;
         if (!lic::readFile(filename, text)) { licMsg = "Could not read that file."; repaint(); return; }
@@ -1670,6 +1818,7 @@ protected:
 
     void uiIdle() override
     {
+        if (smpMsgTicks > 0 && --smpMsgTicks == 0) repaint();
         // persist the window size a moment after the user stops resizing
         if (viewDirty && drag != (DragKind)dkResize && ++viewDirtyTicks > 30) saveView();
     }
@@ -2118,6 +2267,7 @@ protected:
         if (machPrev().in(x, y)) { setMachine(selTrack, machineOf(selTrack) - 1); return true; }
         if (machNext().in(x, y)) { setMachine(selTrack, machineOf(selTrack) + 1); return true; }
         if (machName().in(x, y)) { overlay = ovPicker; repaint(); return true; }
+        if (showSmpLoad() && smpLoadBtn().in(x, y)) { openSampleBrowser(); return true; }
         if (lockStep >= 0 && lockClear().in(x, y)) {
             std::string c; char b[48];
             for (int st : editTargets(lockStep)) { std::snprintf(b, sizeof(b), "cl %d %d %d\n", editPattern(), selTrack, st); c += b; }
@@ -2309,6 +2459,10 @@ private:
     float values[kTotalParams];
     std::unique_ptr<Bank> bank;
     float sx = 1.f;
+    SamplePtr uiSmp[kTracks];
+    void* dropToken = nullptr;
+    bool browseSample = false;
+    std::string smpMsg; int smpMsgTicks = 0;
     int selTrack = 0, page = pgSynth, mpage = mpEcho, mode = mdTrig, stepPg = 0, lockStep = -1;
     Overlay overlay = ovNone;
     DragKind drag = dkNone; int dragIndex = 0; float dragY = 0, dragStart = 0;
