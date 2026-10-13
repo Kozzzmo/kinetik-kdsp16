@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.2
+
+- **Solo** button (S) next to mute on every track: when a track is soloed, only the soloed tracks play
+- **Knob values always match the sound**: the plug-in also receives every change made in its window directly, so
+  hosts that sent an old value back (or lost part of a randomize / undo / preset) can no longer leave the sound out of
+  step with the display — randomize works on the first press
+- NEON skin: the pink outlines are red
+- **SAMPLE machine**: loaded and dropped samples are normalized (-1 dB peak) and a fresh SAMPLE track starts with
+  neutral filter / envelope / crush settings (the previous machine's settings made samples sound odd or almost
+  silent); a new sample on a SAMPLE track resets START, LENGTH and REVERSE; TUNE 64 is exactly 0 semitones
+
 ## 0.9.1
 
 - **Updates really replace the plug-in**: the installers now always overwrite the installed files (on macOS an update

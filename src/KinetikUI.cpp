@@ -168,6 +168,17 @@ protected:
     {
         values[idx] = v;
         setParameterValue(idx, v);
+        // also sent through the cmd state (flushed in uiIdle): the DSP applies it even if the host loses or
+        // reverts the parameter change (see uiEdit in the plugin)
+        char b[40]; std::snprintf(b, sizeof(b), "pv %u %.4f\n", (unsigned)idx, v); pvQueue += b;
+    }
+    std::string pvQueue;
+    void flushPv()
+    {
+        if (pvQueue.empty()) return;
+        pvQueue.pop_back();
+        setState("cmd", pvQueue.c_str());
+        pvQueue.clear();
     }
     void setParamGesture(uint32_t idx, float v)
     {
@@ -249,7 +260,7 @@ protected:
         if (p == tpEQG || p == tpFENV) { std::snprintf(b, sizeof(b), "%+d", iv - 64); return b; }
         if (p < 8 && machineOf(t) == mSAMPLE) {
             switch (p) {
-            case 0: { const int st = (int)std::lround((v / 127.f - 0.5f) * 48.f); if (st == 0) return "0 ST"; std::snprintf(b, sizeof(b), "%+d ST", st); return b; }
+            case 0: { const int st = (int)std::lround(clampf((v - 64.f) / 63.f, -1.f, 1.f) * 24.f); if (st == 0) return "0 ST"; std::snprintf(b, sizeof(b), "%+d ST", st); return b; }
             case 1: case 2: std::snprintf(b, sizeof(b), "%d%%", (int)std::lround(v / 127.f * 100.f)); return b;
             case 4: if (iv >= 127) return "FULL"; break;
             case 5: return iv >= 64 ? "ON" : "OFF";
@@ -298,6 +309,7 @@ protected:
     // ------------------------------------------------------------------ layout
     R trackBtn(int t) const { return {20.f + t * 71.25f, 66.f, 66.f, 64.f}; }
     R muteBtn(int t) const { R r = trackBtn(t); return {r.x + r.w - 28.f, r.y + r.h - 26.f, 28.f, 26.f}; } // generous hit area
+    R soloBtn(int t) const { const R m = muteBtn(t); return {m.x - 26.f, m.y, 26.f, m.h}; }
     R lcd() const { return {20.f, 146.f, 680.f, 150.f}; }
     R machPrev() const { return {150.f, 156.f, 26.f, 26.f}; }
     R machName() const { return {178.f, 156.f, 130.f, 26.f}; }
@@ -649,7 +661,15 @@ protected:
             const R m{mh.x + 6, mh.y + 9, mh.w - 10, mh.h - 13};
             if (muted) box(m, th->lock, 2.f); else frame(m, Color(fg, Color(0, 0, 0, 0.f), 0.6f), 2.f);
             label(m.cx(), m.cy() + 1, "M", 9.f, muted ? th->selText : fg, ALIGN_CENTER | ALIGN_MIDDLE, fnMono);
+            {   // solo
+                const bool solo = bank->solo[t] != 0;
+                const R sh = soloBtn(t);
+                const R so{sh.x + (m.x - mh.x), m.y, m.w, m.h};
+                if (solo) box(so, th->accent, 2.f); else frame(so, Color(fg, Color(0, 0, 0, 0.f), 0.6f), 2.f);
+                label(so.cx(), so.cy() + 1, "S", 9.f, solo ? th->selText : fg, ALIGN_CENTER | ALIGN_MIDDLE, fnMono);
+            }
             if (muted) { beginPath(); rect(r.x + 4, r.y + r.h - 4, r.w - 8, 2); fillColor(th->lock); fill(); }
+            else if (trackSilenced(*bank, t)) { beginPath(); rect(r.x + 4, r.y + r.h - 4, r.w - 8, 2); fillColor(th->faint); fill(); }   // silent: another track is soloed
         }
     }
 
@@ -1842,15 +1862,29 @@ protected:
         d->name = baseName(path);
         const drwav_uint64 n = std::min<drwav_uint64>(frames, (drwav_uint64)(kMaxSampleSeconds * rate));
         d->pcm.resize((size_t)n);
+        float peak = 0.f;
         for (drwav_uint64 i = 0; i < n; ++i) {
             float v = 0.f;
             for (unsigned int c = 0; c < ch; ++c) v += pcm[i * ch + c];
-            d->pcm[(size_t)i] = v / (float)ch;
+            v /= (float)ch;
+            d->pcm[(size_t)i] = v;
+            peak = std::max(peak, std::fabs(v));
         }
         drwav_free(pcm, nullptr);
+        // normalize to -1 dBFS so every sample plays as loud as the synthesized drums
+        if (peak > 1e-4f) { const float g = 0.89f / peak; for (float& v : d->pcm) v *= g; }
         uiSmp[t] = d;
         setState("smp", (std::to_string(t) + " " + smp::encode(*d)).c_str());
-        if (machineOf(t) != mSAMPLE) setMachine(t, mSAMPLE);
+        if (machineOf(t) != mSAMPLE) {
+            setMachine(t, mSAMPLE);
+            // a fresh SAMPLE track: neutral tone shaping (the previous machine's filter / envelope / crush made
+            // the sample sound odd or almost silent); level, pan and sends are kept
+            for (int p : {tpAMD, tpAMF, tpEQF, tpEQG, tpCUTOFF, tpFTYPE, tpRESO, tpSRR, tpDIST, tpFENV, tpFDEC, tpVEL})
+                setParamGesture(t * kTrackParams + p, kFxDefaults[p - 8]);
+        } else {
+            // new sample on a SAMPLE track: start, length and reverse refer to the old file, reset them
+            for (int k : {1, 2, 5}) setParamGesture(t * kTrackParams + k, kMachineDefs[mSAMPLE].def[k]);
+        }
         selTrack = t;
         page = pgSynth;
         smpMsg.clear();
@@ -1904,6 +1938,7 @@ protected:
 
     void uiIdle() override
     {
+        flushPv();
         if (updater && (int)updater->getState() != updLastState) { updLastState = (int)updater->getState(); repaint(); }
         if (smpMsgTicks > 0 && --smpMsgTicks == 0) repaint();
         // persist the window size a moment after the user stops resizing
@@ -2334,6 +2369,10 @@ protected:
         if (helpBtn().in(x, y)) { overlay = ovHelp; repaint(); return true; }
 
         for (int t = 0; t < kTracks; ++t) {
+            if (soloBtn(t).in(x, y)) {
+                char b[32]; std::snprintf(b, sizeof(b), "S %d %d", t, bank->solo[t] ? 0 : 1); sendCmd(b);
+                repaint(); return true;
+            }
             if (muteBtn(t).in(x, y)) {
                 char b[32]; std::snprintf(b, sizeof(b), "U %d %d", t, bank->mute[t] ? 0 : 1); sendCmd(b);
                 repaint(); return true;

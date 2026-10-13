@@ -310,7 +310,7 @@ private:
             tr.decK = e.k;
             tr.decOk = evalCond(tr, P.cond[t][s], e.k, P.trackLen[t]);
         } else if (tr.decK != e.k) return;
-        if (!tr.decOk || bank.mute[t]) return;
+        if (!tr.decOk || trackSilenced(bank, t)) return;
         const float acc = 1.f + P.accent / 127.f * 0.8f;
         const int n = std::max<int>(1, P.ratch[t][s]);
         const uint32_t stepLen = (uint32_t)(stepBeats() * 60.0 / curBpm * sr / n);
@@ -453,7 +453,7 @@ private:
         tr.srrN = e[tpSRR] > 0.5f ? (int)expmap(e[tpSRR] / 127.f, 1.f, 64.f) : 1;
         tr.dist = e[tpDIST] / 127.f;
         const float v = e[tpVOL] / 127.f;
-        tr.vol = bank.mute[t] ? 0.f : v * v * 0.8f; // mute silences the track at once
+        tr.vol = trackSilenced(bank, t) ? 0.f : v * v * 0.8f; // mute silences the track at once
         const float pan = e[tpPAN] / 127.f;
         tr.panL = std::cos(pan * kPi * 0.5f); tr.panR = std::sin(pan * kPi * 0.5f);
         tr.del = e[tpDEL] / 127.f * 1.4f; tr.rev = e[tpREV] / 127.f * 1.4f;   // sends go above unity

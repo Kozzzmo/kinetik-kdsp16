@@ -216,7 +216,7 @@ struct Voice {
             controlModal(x);
             break;
         case mSAMPLE: {
-            sTune = (x[0] - 0.5f) * 48.f;                       // +-24 semitones
+            sTune = clampf((x[0] * 127.f - 64.f) / 63.f, -1.f, 1.f) * 24.f;   // +-24 semitones, 64 = 0
             sAtk = x[3] * x[3] * 0.25f * sr;
             sDec = x[4] >= 0.995f ? 1.f : decayCoef(expmap(x[4], 0.02f, 8.f), sr);
             sRev = x[5] >= 0.5f;
