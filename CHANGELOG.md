@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9
+
+- **Update check**: the plug-in tells you when a new version is out (at most once a day, nothing is sent). Click the
+  logo: DOWNLOAD & INSTALL fetches the installer, checks its signature and opens it (close your DAW to finish).
+  Automatic check can be turned off in the same window.
+
 ## 0.8
 
 - **SAMPLE machine**: your own sounds, one per track. Drop a WAV or AIFF file on the window (on a track button

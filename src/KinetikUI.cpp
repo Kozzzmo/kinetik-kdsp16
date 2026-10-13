@@ -7,6 +7,7 @@
 #include "Skins.hpp"
 #include "Fonts.hpp"
 #include "License.hpp"
+#include "Updater.hpp"
 #include "MasterFx.hpp"
 #include "Voice.hpp"
 #include "Sample.hpp"
@@ -45,7 +46,7 @@ enum MPage { mpEcho, mpReverb, mpMaster };
 enum Mode { mdTrig, mdAccent, mdSlide, mdRatch, mdCond, mdTime, kModes };
 
 enum DragKind { dkNone, dkTrackKnob, dkMasterKnob, dkTempo, dkSwing, dkAccent, dkKit };
-enum Overlay { ovNone, ovPicker, ovPresets, ovHelp, ovSkins, ovSave, ovLicense, ovDest };
+enum Overlay { ovNone, ovPicker, ovPresets, ovHelp, ovSkins, ovSave, ovLicense, ovDest , ovUpdate};
 enum DragExtra { dkResize = 100 };
 
 class KinetikUI : public UI
@@ -75,6 +76,8 @@ public:
         setSkin(sk, false);
         if (zm != 100) setSize((uint)std::lround(W * baseScale() * zm / 100.0), (uint)std::lround(H * baseScale() * zm / 100.0));
         viewDirty = false;
+        updater.reset(new upd::Checker("KDSP-16", KN_VERSION, "https://github.com/Kozzzmo/kinetik-kdsp16/releases/latest/download/update.txt"));
+        updater->check(false);
         // files dropped on the window: samples (SAMPLE machine) or a licence file
         dropToken = fileDropAttach(getWindow().getNativeWindowHandle(),
                                    [this](const std::string& path, double fx, double fy) { fileDropped(path, fx * W, fy * H); });
@@ -544,7 +547,9 @@ protected:
         }
         drawSparkle(right + 10, 19, 9.f, star);
         label(right + 30, 21, "KDSP-16", 13.f, th->text, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
-        if (licInfo.valid || !lic::kDemoModeEnabled) label(right + 30, 39, "DRUM SYNTH PROGRAM", 9.5f, th->dim, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
+        if (updater && updater->getState() == upd::Checker::stAvailable)
+            label(right + 30, 39, ("UPDATE " + updater->manifest().version + " AVAILABLE - CLICK").c_str(), 9.5f, th->logo == lgRiso ? th->text : th->accent, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
+        else if (licInfo.valid || !lic::kDemoModeEnabled) label(right + 30, 39, "DRUM SYNTH PROGRAM", 9.5f, th->dim, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
         else label(right + 30, 39, "DEMO - CLICK TO REGISTER", 9.5f, th->logo == lgRiso ? th->text : th->accent, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
     }
 
@@ -572,6 +577,7 @@ protected:
         if (overlay == ovSkins) drawSkins();
         if (overlay == ovSave) drawSave();
         if (overlay == ovLicense) drawLicense();
+        if (overlay == ovUpdate) drawUpdate();
         if (overlay == ovDest) drawDestMenu();
         drawGrip();
     }
@@ -1659,6 +1665,77 @@ protected:
     }
 
     // ------------------------------------------------------------------ licence (registration)
+    // ------------------------------------------------------------------ About / updates window (logo click)
+    std::unique_ptr<upd::Checker> updater;
+    int updLastState = -1;
+    R updBox() const { return {290.f, 150.f, 600.f, 380.f}; }
+    R updAuto() const { return {320.f, 400.f, 250.f, 34.f}; }
+    R updLic() const { return {580.f, 400.f, 280.f, 34.f}; }
+    R updMain() const { return {320.f, 456.f, 250.f, 40.f}; }
+    R updSkip() const { return {580.f, 456.f, 150.f, 40.f}; }
+    R updClose() const { return {740.f, 456.f, 120.f, 40.f}; }
+    void drawUpdate()
+    {
+        const R bx = updBox();
+        overlayBox(bx);
+        using C = upd::Checker;
+        const C::State st = updater->getState();
+        const upd::Manifest m = updater->manifest();
+        number(320, bx.y + 36, "Kinetik KDSP-16", 22.f, th->text, ALIGN_LEFT | ALIGN_MIDDLE);
+        label(860, bx.y + 36, (std::string("version ") + KN_VERSION).c_str(), 11.f, th->dim, ALIGN_RIGHT | ALIGN_MIDDLE);
+        std::string l1, l2, l3;
+        switch (st) {
+        case C::stChecking: l1 = "Checking for updates..."; break;
+        case C::stAvailable:
+            l1 = "Version " + m.version + " is available.";
+            l2 = m.notes;
+            l3 = m.url.empty() ? "Opens the download page." : "Downloads the installer, checks its signature, then opens it.";
+            break;
+        case C::stUpToDate: l1 = "You have the latest version."; break;
+        case C::stDownloading: l1 = "Downloading and checking the installer..."; break;
+        case C::stOpened:
+            l1 = "The installer is open.";
+            l2 = "Close your music software before you finish the installation,";
+            l3 = "then open it again: the new version is loaded.";
+            break;
+        case C::stFailed: l1 = updater->message(); l2 = "Check your internet connection and try again."; break;
+        default: l1 = "Click CHECK NOW to look for a new version."; break;
+        }
+        label(320, bx.y + 86, l1.c_str(), 13.f, th->text, ALIGN_LEFT | ALIGN_MIDDLE);
+        if (!l2.empty()) {
+            fontFace(NANOVG_DEJAVU_SANS_TTF); fontSize(12.5f); fillColor(th->dim); textAlign(ALIGN_LEFT | ALIGN_TOP);
+            textBox(320, bx.y + 104, 540, l2.c_str(), nullptr);
+        }
+        if (!l3.empty()) label(320, bx.y + 196, l3.c_str(), 10.5f, th->dim, ALIGN_LEFT | ALIGN_MIDDLE);
+        const bool autoOn = updater->autoCheck();
+        button(updAuto(), autoOn ? "AUTO CHECK: ON" : "AUTO CHECK: OFF", autoOn, 10.5f);
+        button(updLic(), licInfo.valid ? "LICENCE: REGISTERED" : "ENTER A LICENCE", false, 10.5f);
+        const bool avail = st == C::stAvailable;
+        const bool busy = st == C::stChecking || st == C::stDownloading;
+        button(updMain(), busy ? "PLEASE WAIT..." : (avail ? (m.url.empty() ? "OPEN DOWNLOAD PAGE" : "DOWNLOAD & INSTALL") : "CHECK NOW"), avail, 11.f);
+        if (avail) button(updSkip(), "SKIP THIS ONE", false, 10.5f);
+        button(updClose(), "CLOSE", false, 11.f);
+    }
+    bool updateClick(float x, float y)
+    {
+        using C = upd::Checker;
+        const C::State st = updater->getState();
+        if (updMain().in(x, y)) {
+            if (st == C::stAvailable) updater->install();
+            else if (st != C::stChecking && st != C::stDownloading) updater->check(true);
+        } else if (st == C::stAvailable && updSkip().in(x, y)) {
+            updater->skipThisVersion();
+        } else if (updAuto().in(x, y)) {
+            updater->setAutoCheck(!updater->autoCheck());
+        } else if (updLic().in(x, y)) {
+            overlay = ovLicense; licMsg.clear();
+        } else if (updClose().in(x, y) || !updBox().in(x, y)) {
+            overlay = ovNone;
+        }
+        repaint();
+        return true;
+    }
+
     void drawLicense()
     {
         const R bx = licBox();
@@ -1818,6 +1895,7 @@ protected:
 
     void uiIdle() override
     {
+        if (updater && (int)updater->getState() != updLastState) { updLastState = (int)updater->getState(); repaint(); }
         if (smpMsgTicks > 0 && --smpMsgTicks == 0) repaint();
         // persist the window size a moment after the user stops resizing
         if (viewDirty && drag != (DragKind)dkResize && ++viewDirtyTicks > 30) saveView();
@@ -2226,7 +2304,8 @@ protected:
         if (overlay == ovNone && (page == pgLfo1 || page == pgLfo2) && lfoDestBox().in(x, y)) { openDestMenu(page - pgLfo1); return true; }
         if (overlay == ovHelp) { overlay = ovNone; repaint(); return true; }
         if (overlay == ovLicense) return licenseClick(x, y);
-        if (overlay == ovNone && logoArea().in(x, y)) { overlay = ovLicense; licMsg.clear(); repaint(); return true; }
+        if (overlay == ovUpdate) return updateClick(x, y);
+        if (overlay == ovNone && logoArea().in(x, y)) { overlay = ovUpdate; repaint(); return true; }
         if (overlay == ovSave) {
             if (saveOk().in(x, y)) commitSave();
             else if (saveCancel().in(x, y) || !saveBox().in(x, y)) { overlay = ovNone; repaint(); }
