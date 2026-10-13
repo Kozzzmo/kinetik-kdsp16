@@ -30,7 +30,8 @@ inline Role machineRole(int m)
 // values: full parameter array (kTotalParams) as the UI holds it
 inline float& tparam(float* values, int t, int p) { return values[t * kTrackParams + p]; }
 
-// ---- sound of one track (machine kept) ----
+// ---- sound of one track (machine kept). LEVEL, PAN and the DELAY / REVERB sends are left as they are:
+// randomizing a sound must not change the mix.
 inline void randomizeSound(float* values, int t, int m, RandGen& r)
 {
     const Role role = machineRole(m);
@@ -56,10 +57,6 @@ inline void randomizeSound(float* values, int t, int m, RandGen& r)
     }
     tparam(values, t, tpSRR) = r.chance(0.15f) ? (float)r.range(10, 70) : 0.f;
     tparam(values, t, tpDIST) = r.chance(0.3f) ? (float)r.range(5, 60) : 0.f;
-    tparam(values, t, tpVOL) = (float)r.range(85, 112);
-    tparam(values, t, tpPAN) = (float)clampi(64 + (r.chance(0.5f) ? r.range(-40, 40) : 0), 0, 127);
-    tparam(values, t, tpDEL) = r.chance(0.25f) ? (float)r.range(10, 70) : 0.f;
-    tparam(values, t, tpREV) = r.chance(0.3f) ? (float)r.range(10, 70) : 0.f;
     // filter envelope (sometimes), velocity sensitivity
     tparam(values, t, tpFENV) = r.chance(0.25f) ? (float)clampi(64 + r.range(-40, 50), 0, 127) : 64.f;
     tparam(values, t, tpFDEC) = (float)r.range(15, 80);

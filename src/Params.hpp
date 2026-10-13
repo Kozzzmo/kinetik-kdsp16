@@ -7,7 +7,7 @@
 namespace kn {
 
 static constexpr int kTracks = 16;
-static constexpr int kSteps = 64;
+static constexpr int kSteps = 128;
 static constexpr int kPatterns = 16;
 
 // ---- per-track parameters (all 0..127 like the original hardware) ----
