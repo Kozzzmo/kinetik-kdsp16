@@ -295,7 +295,10 @@ static void presetIdm(PB& b)
     b.row(0, 7, "x.......x....");
     for (int t = 0; t < 8; ++t)
         for (int s = 0; s < 13; ++s)
-            if (b.b.patterns[0].flags[t][s] && r.chance(0.5f)) b.lock(0, t, s, r.range(0, 3), r.range(10, 117));
+            if (b.b.patterns[0].flags[t][s] && r.chance(0.5f)) {
+                const int v = r.range(10, 117), p = r.range(0, 3);   // in this order on every compiler
+                b.lock(0, t, s, p, v);
+            }
     b.cond(0, 1, 5, 3); b.cond(0, 1, 7, 13); b.cond(0, 2, 6, 2); b.cond(0, 6, 10, 15);
     b.micro(0, 1, 2, 5); b.micro(0, 3, 5, -4); b.ratch(0, 4, 3, 3); b.ratch(0, 2, 10, 2);
     b.settings(0, 13, 50);
@@ -308,7 +311,10 @@ static void presetIdm(PB& b)
     b.row(1, 7, "x......x.......");
     for (int t = 0; t < 8; ++t)
         for (int s = 0; s < 15; ++s)
-            if (b.b.patterns[1].flags[t][s] && r.chance(0.6f)) b.lock(1, t, s, r.range(0, 4), r.range(10, 117));
+            if (b.b.patterns[1].flags[t][s] && r.chance(0.6f)) {
+                const int v = r.range(10, 117), p = r.range(0, 4);   // in this order on every compiler
+                b.lock(1, t, s, p, v);
+            }
     b.settings(1, 15, 50, 0, 90);
     b.g(gTEMPO, 104);
 }

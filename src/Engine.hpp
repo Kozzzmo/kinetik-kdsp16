@@ -37,6 +37,7 @@ static constexpr int kOutBuses = 4;   // main + 3 stereo aux outputs
 // ---------------------------------------------------------------------------
 struct Track {
     Voice voice;
+    DriveAA distAA;   // anti-aliased track DRIVE
     float sr = 48000.f;
     // fx
     float amPh = 0;
@@ -487,7 +488,7 @@ private:
             const float amInc = tr.amf / sr;
             const bool eqOn = std::fabs(tr.eqDb) > 0.05f;
             for (uint32_t i = 0; i < n; ++i) {
-                float s = drive(b[i], tr.dist);
+                float s = tr.distAA.process(b[i], tr.dist);
                 if (tr.amd > 0.f) {
                     tr.amPh += amInc; if (tr.amPh >= 1.f) tr.amPh -= 1.f;
                     s *= 1.f - tr.amd * (0.5f - 0.5f * std::sin(kTwoPi * tr.amPh));

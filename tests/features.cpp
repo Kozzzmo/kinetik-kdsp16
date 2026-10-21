@@ -65,7 +65,7 @@ int main(){
     for(int p=0;p<8;p++) e->trackParam[0][p]=kMachineDefs[mSAMPLE].def[p];
     auto sd=std::make_shared<SampleData>(); sd->sr=44100; sd->name="test sine"; sd->pcm.resize(4410);
     for(size_t i=0;i<sd->pcm.size();i++) sd->pcm[i]=0.5f*std::sin(6.2831853f*440.f*i/44100.f);
-    SamplePtr back; smp::decodeAll((std::string("0 ")+smp::encode(*sd)+"\n").c_str(),[&](int t,SamplePtr d){ if(t==0) back=d; });
+    SamplePtr back; smp::decodeAll((smp::encodeLine(0,*sd)+"\n").c_str(),[&](int t,SamplePtr d){ if(t==0) back=d; });
     bool rt = back && back->name=="test sine" && back->frames()==4410 && std::fabs(back->pcm[100]-sd->pcm[100])<1e-3f;
     printf(rt?"ok   sample codec round trip\n":"FAIL sample codec round trip\n"); if(!rt) fails++;
     e->samples[0]=back.get();

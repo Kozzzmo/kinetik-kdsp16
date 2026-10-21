@@ -12,6 +12,7 @@
 #include "Voice.hpp"
 #include "Sample.hpp"
 #include "FileDrop.hpp"
+#include "MidiFile.hpp"
 #define DR_WAV_IMPLEMENTATION
 #include "third_party/dr_libs/dr_wav.h"
 #include <cstdlib>
@@ -25,6 +26,8 @@
 #include <cmath>
 #include <string>
 #include <memory>
+#include <deque>
+#include <chrono>
 
 START_NAMESPACE_DISTRHO
 
@@ -45,7 +48,7 @@ static const char* const kPageNames[kPages] = {"SYNTH", "FILTER", "FX", "MIX", "
 enum MPage { mpEcho, mpReverb, mpMaster };
 enum Mode { mdTrig, mdAccent, mdSlide, mdRatch, mdCond, mdTime, kModes };
 
-enum DragKind { dkNone, dkTrackKnob, dkMasterKnob, dkTempo, dkSwing, dkAccent, dkKit };
+enum DragKind { dkNone, dkTrackKnob, dkMasterKnob, dkTempo, dkSwing, dkAccent, dkKit, dkEuclid, dkMorph };
 enum Overlay { ovNone, ovPicker, ovPresets, ovHelp, ovSkins, ovSave, ovLicense, ovDest , ovUpdate};
 enum DragExtra { dkResize = 100 };
 
@@ -88,14 +91,14 @@ public:
     static std::string viewFile()
     {
        #ifdef _WIN32
-        const char* base = std::getenv("APPDATA");
-        return base ? std::string(base) + "\\KinetikKDSP16-view.txt" : std::string();
+        const std::string base = fs::env("APPDATA");
+        return !base.empty() ? base + "\\KinetikKDSP16-view.txt" : std::string();
        #else
-        const char* base = std::getenv("HOME");
+        const std::string base = fs::env("HOME");
        #ifdef __APPLE__
-        return base ? std::string(base) + "/Library/Preferences/KinetikKDSP16-view.txt" : std::string();
+        return !base.empty() ? base + "/Library/Preferences/KinetikKDSP16-view.txt" : std::string();
        #else
-        return base ? std::string(base) + "/.config/KinetikKDSP16-view.txt" : std::string();
+        return !base.empty() ? base + "/.config/KinetikKDSP16-view.txt" : std::string();
        #endif
        #endif
     }
@@ -104,7 +107,7 @@ public:
         skinOut = kDefaultSkin; zoomOut = 100;
         const std::string f = viewFile();
         if (f.empty()) return;
-        if (FILE* fp = std::fopen(f.c_str(), "r")) {
+        if (FILE* fp = fs::open(f, "r")) {
             int a = 0, b = 100; const int n = std::fscanf(fp, "%d %d", &a, &b); std::fclose(fp);
             if (n >= 1 && a >= 0 && a < kNumThemes) skinOut = a;
             if (n >= 2 && b >= 60 && b <= 300) zoomOut = b;
@@ -114,7 +117,7 @@ public:
     {
         const std::string f = viewFile();
         if (f.empty()) return;
-        if (FILE* fp = std::fopen(f.c_str(), "w")) { std::fprintf(fp, "%d %d\n", s, z); std::fclose(fp); }
+        if (FILE* fp = fs::open(f, "w")) { std::fprintf(fp, "%d %d\n", s, z); std::fclose(fp); }
     }
     void setSkin(int i, bool save)
     {
@@ -166,6 +169,7 @@ protected:
 
     void setParam(uint32_t idx, float v)
     {
+        if (values[idx] != v) autoSnap("sound", 1.2);
         values[idx] = v;
         setParameterValue(idx, v);
         // also sent through the cmd state (flushed in uiIdle): the DSP applies it even if the host loses or
@@ -189,11 +193,19 @@ protected:
 
     void sendCmd(const std::string& c)
     {
+        if (undoable(c)) autoSnap("edit", 0.5);
         if (c.rfind("aud ", 0) != 0) applyCommand(*bank, c.c_str());
         setState("cmd", c.c_str());
     }
+    static bool undoable(const std::string& c)
+    {
+        static const char* skip[] = {"aud ", "fill ", "sel ", "rec ", "non ", "noff ", "panic", "lic", "pv "};
+        for (const char* k : skip) if (c.rfind(k, 0) == 0) return false;
+        return true;
+    }
     void sendLines(const std::string& c)
     {
+        if (undoable(c)) autoSnap("edit", 0.5);
         size_t st = 0;
         while (st < c.size()) {
             size_t e = c.find('\n', st); if (e == std::string::npos) e = c.size();
@@ -332,6 +344,7 @@ protected:
     R patCopy() const { return {946.f, 400.f, 68.f, 24.f}; }
     R patPaste() const { return {1018.f, 400.f, 68.f, 24.f}; }
     R patClear() const { return {1090.f, 400.f, 68.f, 24.f}; }
+    R patMidi() const { return {874.f, 400.f, 68.f, 24.f}; }
     R modeBtn(int i) const { return {20.f + i * 62.f, 504.f, 58.f, 26.f}; }
     R stepPage(int i) const { return {396.f + i * 27.f, 504.f, 25.f, 26.f}; }   // 8 pages of 16 steps
     R lenMinus() const { return {612.f, 504.f, 22.f, 26.f}; }
@@ -348,6 +361,8 @@ protected:
     R trkPaste() const { return {866.f, 504.f, 62.f, 26.f}; }
     R trkClear() const { return {932.f, 504.f, 62.f, 26.f}; }
     R lockClrAll() const { return {998.f, 504.f, 66.f, 26.f}; }
+    R shiftL() const { return {1068.f, 504.f, 26.f, 26.f}; }
+    R shiftR() const { return {1096.f, 504.f, 26.f, 26.f}; }
     R stepBtn(int i) const { return {20.f + i * 71.25f, 544.f, 66.f, 72.f}; }
     R playBtn() const { return {840.f, 9.f, 84.f, 40.f}; }
     R tempoBox() const { return {932.f, 9.f, 110.f, 40.f}; }
@@ -366,11 +381,13 @@ protected:
     R presetBox() const { return {80.f, 60.f, 1020.f, 610.f}; }
     R presetTab(int i) const { return {300.f + i * 134.f, 76.f, 128.f, 32.f}; }
     R presetRow(int i) const { return {100.f + (i % 2) * 490.f, 120.f + (i / 2) * 43.f, 480.f, 40.f}; }
-    R presetSaveNew() const { return {100.f, 620.f, 190.f, 36.f}; }
-    R presetDelete() const { return {300.f, 620.f, 110.f, 36.f}; }
-    R presetLoadAll() const { return {560.f, 620.f, 250.f, 36.f}; }
-    R presetLoadKit() const { return {820.f, 620.f, 170.f, 36.f}; }
-    R presetCancel() const { return {1000.f, 620.f, 80.f, 36.f}; }
+    R presetSaveNew() const { return {100.f, 620.f, 170.f, 36.f}; }
+    R presetDelete() const { return {278.f, 620.f, 90.f, 36.f}; }
+    R presetMorph() const { return {380.f, 620.f, 260.f, 36.f}; }
+    R presetLoadAll() const { return {650.f, 620.f, 190.f, 36.f}; }
+    R presetLoadKit() const { return {848.f, 620.f, 150.f, 36.f}; }
+    R presetCancel() const { return {1006.f, 620.f, 74.f, 36.f}; }
+    R presetSearchBox() const { return {716.f, 76.f, 364.f, 32.f}; }
     // save window
     R saveBox() const { return {290.f, 200.f, 600.f, 270.f}; }
     R saveField() const { return {320.f, 290.f, 540.f, 52.f}; }
@@ -598,6 +615,7 @@ protected:
         if (overlay == ovLicense) drawLicense();
         if (overlay == ovUpdate) drawUpdate();
         if (overlay == ovDest) drawDestMenu();
+        if (tipShown && overlay == ovNone) drawTip();
         drawGrip();
     }
 
@@ -1209,6 +1227,15 @@ protected:
 
         for (int k = 0; k < 8; ++k) {
             const int pi = pageParam(page, k);
+            if (euclidSlot(k)) {
+                const int n = tlen(selTrack);
+                char eb[16];
+                if (k == 6) std::snprintf(eb, sizeof(eb), eucHits[selTrack] > 0 ? "%d / %d" : "OFF", eucHits[selTrack], n);
+                else std::snprintf(eb, sizeof(eb), "%+d", eucRot[selTrack]);
+                drawKnob(knob(k), k == 6 ? (float)eucHits[selTrack] / n : 0.5f + (float)eucRot[selTrack] / (2.f * n),
+                         k == 6 ? "EUCLID" : "ROTATE", eb, false, drag == dkEuclid && dragIndex == k, true);
+                continue;
+            }
             if (kitField(k) >= 0) {
                 const int f = kitField(k), kv = bank->kit[selTrack][f];
                 char kb[16];
@@ -1240,7 +1267,9 @@ protected:
         }
         const R in{716, 394, 448, 88};
         box(in, th->inner, th->radius);
-        label(728, 412, "PATTERNS", 10.5f, th->logo == lgRiso ? th->text : th->dim, ALIGN_LEFT | ALIGN_MIDDLE);
+        if (!patMsg.empty()) label(728, 412, patMsg.c_str(), 10.5f, th->lock, ALIGN_LEFT | ALIGN_MIDDLE);
+        else label(728, 412, "PATTERNS", 10.5f, th->logo == lgRiso ? th->text : th->dim, ALIGN_LEFT | ALIGN_MIDDLE);
+        button(patMidi(), "MIDI", false, 10.5f);
         button(patCopy(), patClip >= 0 ? "COPIED" : "COPY", false, 10.5f);
         button(patPaste(), "PASTE", false, 10.5f);
         button(patClear(), "CLEAR", false, 10.5f);
@@ -1288,6 +1317,10 @@ protected:
         button(trkCopy(), trackClip.empty() ? "COPY" : "COPIED", false, 10.5f);
         button(trkPaste(), "PASTE", false, 10.5f); button(trkClear(), "CLEAR", false, 10.5f);
         button(lockClrAll(), "-LOCKS", false, 10.5f);
+        for (const R& r : {shiftL(), shiftR()}) {   // move the track's steps one step earlier / later
+            button(r, "", false, 10.f);
+            label(r.cx(), r.cy() + 1, r.x == shiftL().x ? "\xE2\x97\x80" : "\xE2\x96\xB6", 9.f, th->btnText, ALIGN_CENTER | ALIGN_MIDDLE, fnSans);
+        }
 
         for (int i = 0; i < 16; ++i) {
             const int s = stepPg * 16 + i;
@@ -1377,10 +1410,11 @@ protected:
             label(r.cx(), r.y + 30, rs[i], 9.f, th->dim);
         }
         const R u = undoBtn();
+        const bool undoValid = !undoStack.empty(), redoValid = !redoStack.empty();
         if (undoValid) { box(u, th->btnFill); frame(u, th->lock, -1.f, 1.5f); }
         else { box(u, th->btnFill); frame(u, th->btnEdge); }
         label(u.cx(), u.y + 14, "UNDO", 10.5f, undoValid ? th->lock : th->faint);
-        label(u.cx(), u.y + 30, undoValid ? undoWhat : "", 9.f, th->dim);
+        label(u.cx(), u.y + 30, undoValid ? undoStack.back().what.c_str() : (redoValid ? "right-click: redo" : ""), 9.f, th->dim);
         label(996, 640, "PRESET", 9.5f, th->dim, ALIGN_RIGHT | ALIGN_MIDDLE);
         if (th->fontNum == fnSerif) number(996, 666, presetName.c_str(), 19.f, th->text, ALIGN_RIGHT | ALIGN_MIDDLE, fnSerifItalic);
         else number(996, 666, presetName.c_str(), 16.f, th->text, ALIGN_RIGHT | ALIGN_MIDDLE);
@@ -1394,43 +1428,124 @@ protected:
         label(sv.cx(), sv.cy() + 1, "SAVE AS PRESET", 10.5f, th->btnText);
     }
 
-    int presetCount() const { return presetTabUser ? (int)userPresets.size() : kNumPresets; }
+    // ------------------------------------------------------------------ preset browser: tabs, search, favourites
+    struct PEntry { bool user; int idx; std::string name; };
+    int presetCount() const { return (int)presetView.size(); }
+    static std::string lowerStr(std::string s) { for (auto& c : s) c = (char)std::tolower((unsigned char)c); return s; }
+    static std::string favKey(bool user, const std::string& name) { return std::string(user ? "U " : "F ") + name; }
+    bool isFav(bool user, const std::string& name) const { return std::find(favs.begin(), favs.end(), favKey(user, name)) != favs.end(); }
+    static std::string favPath() { const std::string d = userDir(); return d.empty() ? d : d + "favourites.txt"; }
+    void loadFavs()
+    {
+        favs.clear();
+        FILE* f = fs::open(favPath(), "rb");
+        if (!f) return;
+        char line[256];
+        while (std::fgets(line, sizeof(line), f)) {
+            std::string l(line);
+            while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
+            if (l.size() > 2 && (l[0] == 'F' || l[0] == 'U') && l[1] == ' ' && !isFav(l[0] == 'U', l.substr(2))) favs.push_back(l);
+        }
+        std::fclose(f);
+    }
+    void saveFavs() const
+    {
+        FILE* f = fs::open(favPath(), "wb");
+        if (!f) return;
+        for (const auto& l : favs) std::fprintf(f, "%s\n", l.c_str());
+        std::fclose(f);
+    }
+    void toggleFav(const PEntry& e)
+    {
+        auto it = std::find(favs.begin(), favs.end(), favKey(e.user, e.name));
+        if (it != favs.end()) favs.erase(it); else favs.push_back(favKey(e.user, e.name));
+        saveFavs();
+    }
+    int favCount() const
+    {
+        int n = 0;
+        for (int i = 0; i < kNumPresets; ++i) n += isFav(false, kPresets[i].name);
+        for (const auto& u : userPresets) n += isFav(true, u);
+        return n;
+    }
+    void rebuildPresetView()
+    {
+        presetView.clear();
+        const std::string q = lowerStr(presetSearch);
+        auto match = [&](const std::string& a, const char* d) {
+            return q.empty() || lowerStr(a).find(q) != std::string::npos || (d && lowerStr(d).find(q) != std::string::npos); };
+        if (presetPage != 1)
+            for (int i = 0; i < kNumPresets; ++i)
+                if ((presetPage == 0 || isFav(false, kPresets[i].name)) && match(kPresets[i].name, kPresets[i].desc))
+                    presetView.push_back({false, i, kPresets[i].name});
+        if (presetPage != 0)
+            for (int i = 0; i < (int)userPresets.size(); ++i)
+                if ((presetPage == 1 || isFav(true, userPresets[i])) && match(userPresets[i], nullptr))
+                    presetView.push_back({true, i, userPresets[i]});
+        if (presetSel >= (int)presetView.size()) presetSel = -1;
+        presetScroll = clampi(presetScroll, 0, std::max(0, ((int)presetView.size() + 1) / 2 - 11));
+    }
 
     void drawPresets()
     {
         const R bx = presetBox();
         overlayBox(bx);
         number(100, 92, "Presets", 22.f, th->text, ALIGN_LEFT | ALIGN_MIDDLE);
-        button(presetTab(0), "FACTORY", !presetTabUser, 11.f);
-        char b[64]; std::snprintf(b, sizeof(b), "USER (%d)", (int)userPresets.size());
-        button(presetTab(1), b, presetTabUser, 11.f);
-        label(1080, 92, "double-click = load everything", 10.f, th->dim, ALIGN_RIGHT | ALIGN_MIDDLE);
+        char b[96];
+        button(presetTab(0), "FACTORY", presetPage == 0, 11.f);
+        std::snprintf(b, sizeof(b), "USER (%d)", (int)userPresets.size());
+        button(presetTab(1), b, presetPage == 1, 11.f);
+        std::snprintf(b, sizeof(b), "FAVOURITES (%d)", favCount());
+        button(presetTab(2), b, presetPage == 2, 11.f);
+        const R sr = presetSearchBox();
+        box(sr, th->lcdBg); frame(sr, presetSearch.empty() ? th->btnEdge : th->lcdText, -1.f, 1.f);
+        if (presetSearch.empty()) label(sr.x + 12, sr.cy() + 1, "TYPE TO SEARCH", 10.f, th->dim, ALIGN_LEFT | ALIGN_MIDDLE);
+        else {
+            const std::string t = presetSearch + "_";
+            label(sr.x + 12, sr.cy() + 1, t.c_str(), 11.5f, th->lcdText, ALIGN_LEFT | ALIGN_MIDDLE);
+            label(sr.x + sr.w - 12, sr.cy() + 1, "ESC = CLEAR", 9.f, th->dim, ALIGN_RIGHT | ALIGN_MIDDLE);
+        }
         const int n = presetCount();
         for (int k = 0; k < 22; ++k) {
             const int i = k + presetScroll * 2;
             if (i >= n) break;
+            const PEntry& e = presetView[i];
             const R r = presetRow(k);
             const bool sel = i == presetSel;
             if (sel) box(r, th->selFill); else { box(r, th->btnFill); frame(r, th->btnEdge); }
-            if (presetTabUser) {
-                number(r.x + 14, r.cy() + 1, userPresets[i].c_str(), 15.f, sel ? th->selText : th->text, ALIGN_LEFT | ALIGN_MIDDLE);
+            const Color fg = sel ? th->selText : th->text, fd = sel ? th->selText : th->dim;
+            if (e.user && presetPage == 1) {
+                number(r.x + 14, r.cy() + 1, e.name.c_str(), 15.f, fg, ALIGN_LEFT | ALIGN_MIDDLE);
             } else {
-                number(r.x + 12, r.y + 13, kPresets[i].name, 14.f, sel ? th->selText : th->text, ALIGN_LEFT | ALIGN_MIDDLE);
-                label(r.x + 12, r.y + 29, kPresets[i].desc, 9.f, sel ? th->selText : th->dim, ALIGN_LEFT | ALIGN_MIDDLE);
+                number(r.x + 12, r.y + 13, e.name.c_str(), 14.f, fg, ALIGN_LEFT | ALIGN_MIDDLE);
+                label(r.x + 12, r.y + 29, e.user ? "user preset" : kPresets[e.idx].desc, 9.f, fd, ALIGN_LEFT | ALIGN_MIDDLE);
+            }
+            const bool fav = isFav(e.user, e.name);
+            label(r.x + r.w - 20, r.cy() + 1, fav ? "\xE2\x98\x85" : "\xE2\x98\x86", 16.f, fav && !sel ? th->accent : fd,
+                  ALIGN_CENTER | ALIGN_MIDDLE, fnSans);
+        }
+        if (n == 0) {
+            if (!presetSearch.empty()) label(bx.cx(), 300, "Nothing matches the search.", 13.f, th->text);
+            else if (presetPage == 1) {
+                label(bx.cx(), 300, "No user presets yet.", 13.f, th->text);
+                label(bx.cx(), 330, "Use SAVE CURRENT AS... (or SAVE AS PRESET on the main panel).", 11.f, th->dim);
+            } else if (presetPage == 2) {
+                label(bx.cx(), 300, "No favourites yet.", 13.f, th->text);
+                label(bx.cx(), 330, "Click the star of a preset to add it here.", 11.f, th->dim);
             }
         }
-        if (presetTabUser && n == 0) {
-            label(bx.cx(), 300, "No user presets yet.", 13.f, th->text);
-            label(bx.cx(), 330, "Use SAVE CURRENT AS... (or SAVE AS PRESET on the main panel).", 11.f, th->dim);
-        }
-        if (n > 22) {
-            std::snprintf(b, sizeof(b), "scroll for more (%d-%d of %d)", presetScroll * 2 + 1, std::min(n, presetScroll * 2 + 22), n);
-            label(1080, 600, b, 9.5f, th->dim, ALIGN_RIGHT | ALIGN_MIDDLE);
-        }
+        if (n > 22) std::snprintf(b, sizeof(b), "double-click = load everything   scroll for more (%d-%d of %d)", presetScroll * 2 + 1, std::min(n, presetScroll * 2 + 22), n);
+        else std::snprintf(b, sizeof(b), "double-click = load everything");
+        label(1080, 600, b, 9.5f, th->dim, ALIGN_RIGHT | ALIGN_MIDDLE);
         label(100, 600, presetMsg.c_str(), 10.f, th->lock, ALIGN_LEFT | ALIGN_MIDDLE);
         const bool ok = presetSel >= 0 && presetSel < n;
         button(presetSaveNew(), "SAVE CURRENT AS...", false, 10.5f);
-        if (presetTabUser) button(presetDelete(), deleteArmed ? "CONFIRM?" : "DELETE", deleteArmed, 10.5f);
+        if (ok && presetView[presetSel].user) button(presetDelete(), deleteArmed ? "CONFIRM?" : "DELETE", deleteArmed, 10.5f);
+        const R m = presetMorph();
+        box(m, th->lcdBg); frame(m, th->btnEdge);
+        if (ok && morphPos > 0.f) { beginPath(); rect(m.x + 2, m.y + 2, (m.w - 4) * morphPos, m.h - 4); fillColor(Color(th->accent, th->lcdBg, 0.5f)); fill(); }
+        if (ok) std::snprintf(b, sizeof(b), "MORPH %d%%", (int)std::lround(morphPos * 100.f)); else std::snprintf(b, sizeof(b), "MORPH");
+        label(m.cx(), m.cy() + 1, b, 10.5f, ok ? th->lcdText : th->faint);
         button(presetLoadAll(), "LOAD SOUND + PATTERNS", ok, 10.5f);
         button(presetLoadKit(), "LOAD SOUND ONLY", false, 10.5f);
         button(presetCancel(), "CLOSE", false, 10.5f);
@@ -1438,68 +1553,196 @@ protected:
 
     void openPresets()
     {
-        refreshUserPresets();
+        refreshUserPresets(); loadFavs();
         overlay = ovPresets; presetSel = -1; presetScroll = 0; deleteArmed = false; presetMsg.clear();
+        presetSearch.clear(); morphReset(); rebuildPresetView();
         repaint();
     }
 
     void presetClick(float x, float y, bool dbl)
     {
-        for (int t = 0; t < 2; ++t)
+        for (int t = 0; t < 3; ++t)
             if (presetTab(t).in(x, y)) {
-                presetTabUser = t == 1; presetSel = -1; presetScroll = 0; deleteArmed = false; presetMsg.clear();
-                if (presetTabUser) refreshUserPresets();
-                repaint(); return;
+                presetPage = t; presetSel = -1; presetScroll = 0; deleteArmed = false; presetMsg.clear(); morphReset();
+                if (t != 0) refreshUserPresets();
+                rebuildPresetView(); repaint(); return;
             }
+        if (presetSearchBox().in(x, y)) {   // a click clears the search
+            presetSearch.clear(); presetSel = -1; morphReset(); rebuildPresetView(); repaint(); return;
+        }
         const int n = presetCount();
         for (int k = 0; k < 22; ++k) {
             const int i = k + presetScroll * 2;
-            if (i < n && presetRow(k).in(x, y)) {
+            const R r = presetRow(k);
+            if (i < n && r.in(x, y)) {
                 deleteArmed = false;
+                if (x > r.x + r.w - 40) {   // the star: favourite on / off
+                    toggleFav(presetView[i]);
+                    if (presetPage == 2) { presetSel = -1; morphReset(); rebuildPresetView(); }
+                    repaint(); return;
+                }
                 if (dbl && presetSel == i) { loadAnyPreset(i, true); overlay = ovNone; }
-                else presetSel = i;
+                else { if (presetSel != i) morphReset(); presetSel = i; }
                 repaint(); return;
             }
         }
         if (presetSaveNew().in(x, y)) { openSave(); return; }
-        if (presetTabUser && presetDelete().in(x, y) && presetSel >= 0 && presetSel < n) {
+        const bool ok = presetSel >= 0 && presetSel < n;
+        if (ok && presetMorph().in(x, y)) {
+            morphBegin();
+            if (morphReady) { drag = dkMorph; morphDrag(x, true); }
+            repaint(); return;
+        }
+        if (ok && presetView[presetSel].user && presetDelete().in(x, y)) {
             if (!deleteArmed) { deleteArmed = true; repaint(); return; }
-            std::remove(userPresetPath(userPresets[presetSel]).c_str());
-            presetMsg = "Deleted \"" + userPresets[presetSel] + "\"";
-            deleteArmed = false; presetSel = -1; refreshUserPresets(); repaint(); return;
+            const PEntry e = presetView[presetSel];
+            fs::remove(userPresetPath(e.name));
+            if (isFav(true, e.name)) toggleFav(e);
+            presetMsg = "Deleted \"" + e.name + "\"";
+            deleteArmed = false; presetSel = -1; morphReset(); refreshUserPresets(); rebuildPresetView(); repaint(); return;
         }
         deleteArmed = false;
-        if (presetSel >= 0 && presetSel < n && presetLoadAll().in(x, y)) { loadAnyPreset(presetSel, true); overlay = ovNone; }
-        else if (presetSel >= 0 && presetSel < n && presetLoadKit().in(x, y)) { loadAnyPreset(presetSel, false); overlay = ovNone; }
+        if (ok && presetLoadAll().in(x, y)) { loadAnyPreset(presetSel, true); overlay = ovNone; }
+        else if (ok && presetLoadKit().in(x, y)) { loadAnyPreset(presetSel, false); overlay = ovNone; }
         else if (presetCancel().in(x, y) || !presetBox().in(x, y)) overlay = ovNone;
         repaint();
     }
 
     void loadAnyPreset(int i, bool withPatterns)
     {
-        if (presetTabUser) loadUserPreset(userPresets[i], withPatterns);
-        else loadPreset(i, withPatterns);
+        if (i < 0 || i >= presetCount()) return;
+        const PEntry e = presetView[i];
+        if (e.user) loadUserPreset(e.name, withPatterns);
+        else loadPreset(e.idx, withPatterns);
+        morphReset();
+    }
+
+    // ------------------------------------------------------------------ morph: current sound -> selected preset
+    // The base is the sound when the slider is first moved for this preset. Continuous knobs blend; switch-like
+    // knobs (types, waves, destinations, models) and, on tracks whose machine differs, the machine and its synth
+    // knobs change at 50 %. Tempo and patterns are never touched.
+    void morphReset() { morphPos = 0.f; morphReady = false; morphBase.clear(); morphTarget.clear(); morphKind.clear(); }
+    bool readPresetSound(const PEntry& e, std::vector<float>& nv, Bank& mb)
+    {
+        nv.assign(values, values + kTotalParams);
+        if (!e.user) { std::unique_ptr<Bank> pb(new Bank()); buildPreset(e.idx, nv.data(), *pb); std::memcpy(mb.machine, pb->machine, sizeof(mb.machine)); return true; }
+        FILE* fp = fs::open(userPresetPath(e.name), "rb");
+        if (!fp) return false;
+        std::string all; char buf[4096]; size_t rd;
+        while ((rd = std::fread(buf, 1, sizeof(buf), fp)) > 0) all.append(buf, rd);
+        std::fclose(fp);
+        if (all.rfind("KDSP16-PRESET 2", 0) != 0) return false;   // old layout: load and save it once first
+        const size_t bankPos = all.find("\nBANK\n");
+        const std::string head = all.substr(0, bankPos == std::string::npos ? all.size() : bankPos);
+        size_t st = 0;
+        while (st < head.size()) {
+            size_t en = head.find('\n', st); if (en == std::string::npos) en = head.size();
+            int idx; float v;
+            if (std::sscanf(head.c_str() + st, "V %d %f", &idx, &v) == 2 && idx >= 0 && idx < kGlobalBase + gOUT_STEP && std::isfinite(v))
+                nv[idx] = idx == kGlobalBase + gTEMPO ? clampf(v, 40.f, 240.f) : clampf(v, 0.f, 127.f);
+            st = en + 1;
+        }
+        if (bankPos != std::string::npos) {
+            std::unique_ptr<Bank> fb(new Bank());
+            if (deserializeBank(*fb, all.c_str() + bankPos + 6)) std::memcpy(mb.machine, fb->machine, sizeof(mb.machine));
+        }
+        return true;
+    }
+    bool switchTrackParam(int t, int p) const
+    {
+        constexpr int nl = (int)(sizeof(kLfoBase) / sizeof(kLfoBase[0]));
+        for (int l = 0; l < nl; ++l)
+            for (int k = 2; k <= 6; ++k) if (p == lfoParam(l, k)) return true;   // WAVE MODE DEST TARGET SYNC
+        std::string seen[12]; int ns = 0;
+        for (int v = 0; v < 128; ++v) {
+            const std::string txt = valueText(t, p, (float)v);
+            bool f = false;
+            for (int j = 0; j < ns && !f; ++j) f = seen[j] == txt;
+            if (!f) { if (ns == 12) return false; seen[ns++] = txt; }
+        }
+        return true;
+    }
+    bool switchGlobal(int g) const
+    {
+        if (g == gECHO_TIME || g == gECHO_MODEL || g == gREV_MODEL) return true;
+        std::string seen[12]; int ns = 0;
+        for (int v = 0; v < 128; ++v) {
+            const std::string txt = masterText(g, (float)v);
+            bool f = false;
+            for (int j = 0; j < ns && !f; ++j) f = seen[j] == txt;
+            if (!f) { if (ns == 12) return false; seen[ns++] = txt; }
+        }
+        return true;
+    }
+    void morphBegin()
+    {
+        if (morphReady) { snapshot("morph"); return; }
+        if (presetSel < 0 || presetSel >= presetCount()) return;
+        std::unique_ptr<Bank> mb(new Bank(*bank));
+        if (!readPresetSound(presetView[presetSel], morphTarget, *mb)) { presetMsg = "This preset cannot be morphed: load it and save it again."; return; }
+        morphBase.assign(values, values + kTotalParams);
+        morphKind.assign(kTotalParams, 0);
+        for (int t = 0; t < kTracks; ++t) {
+            morphMach[0][t] = bank->machine[t]; morphMach[1][t] = mb->machine[t];
+            const bool same = mb->machine[t] == bank->machine[t];
+            for (int p = 0; p < kTrackParams; ++p) {
+                const int i = t * kTrackParams + p;
+                if (p < 8 && !same) { morphKind[i] = 2; continue; }
+                if (morphBase[i] != morphTarget[i]) morphKind[i] = switchTrackParam(t, p) ? 2 : 1;
+            }
+        }
+        for (int g = 0; g < gOUT_STEP; ++g) {
+            if (g == gPLAY || g == gPATTERN || g == gTEMPO) continue;
+            const int i = kGlobalBase + g;
+            if (morphBase[i] != morphTarget[i]) morphKind[i] = switchGlobal(g) ? 2 : 1;
+        }
+        morphReady = true;
+        snapshot("morph");
+    }
+    void morphDrag(float x, bool force)
+    {
+        const R m = presetMorph();
+        morphPos = clampf((x - m.x - 2.f) / (m.w - 4.f), 0.f, 1.f);
+        if (!force && nowSec() - morphLast < 0.04) { repaint(); return; }   // at most 25 updates a second
+        morphApply();
+    }
+    void morphApply()
+    {
+        morphLast = nowSec();
+        if (!morphReady) return;
+        const bool wasRestoring = restoring; restoring = true;   // one undo step (taken in morphBegin)
+        for (int t = 0; t < kTracks; ++t) {
+            const int want = morphMach[morphPos < 0.5f ? 0 : 1][t];
+            if (bank->machine[t] != want) { char b[32]; std::snprintf(b, sizeof(b), "M %d %d", t, want); sendCmd(b); }
+        }
+        restoring = wasRestoring;
+        std::vector<float> nv(values, values + kTotalParams);
+        for (int i = 0; i < kTotalParams; ++i) {
+            if (!morphKind[i]) continue;
+            const float a = morphBase[i], b = morphTarget[i];
+            nv[i] = morphKind[i] == 2 ? (morphPos < 0.5f ? a : b) : a + (b - a) * morphPos;
+        }
+        applyState(nv.data(), nullptr);
     }
 
     // ------------------------------------------------------------------ user presets (files)
     static std::string userDir()
     {
        #ifdef _WIN32
-        const char* base = std::getenv("APPDATA");
-        if (!base) return std::string();
-        std::string d = std::string(base) + "\\Kinetik";
-        _mkdir(d.c_str()); d += "\\KDSP-16"; _mkdir(d.c_str()); d += "\\Presets"; _mkdir(d.c_str());
+        const std::string base = fs::env("APPDATA");
+        if (base.empty()) return std::string();
+        std::string d = base + "\\Kinetik"; fs::makeDir(d); d += "\\KDSP-16"; fs::makeDir(d); d += "\\Presets"; fs::makeDir(d);
         return d + "\\";
        #else
-        const char* base = std::getenv("HOME");
-        if (!base) return std::string();
+        const std::string base = fs::env("HOME");
+        if (base.empty()) return std::string();
        #ifdef __APPLE__
-        std::string d = std::string(base) + "/Library/Application Support";
+        std::string d = base + "/Library/Application Support";
        #else
-        std::string d = std::string(base) + "/.config";
+        std::string d = base + "/.config";
        #endif
-        mkdir(d.c_str(), 0755); d += "/Kinetik"; mkdir(d.c_str(), 0755); d += "/KDSP-16"; mkdir(d.c_str(), 0755);
-        d += "/Presets"; mkdir(d.c_str(), 0755);
+        fs::makeDir(d); d += "/Kinetik"; fs::makeDir(d); d += "/KDSP-16"; fs::makeDir(d);
+        d += "/Presets"; fs::makeDir(d);
         return d + "/";
        #endif
     }
@@ -1521,13 +1764,7 @@ protected:
         userPresets.clear();
         const std::string d = userDir();
         if (d.empty()) return;
-        if (DIR* dir = opendir(d.c_str())) {
-            while (dirent* e = readdir(dir)) {
-                std::string f = e->d_name;
-                if (f.size() > 5 && f.compare(f.size() - 5, 5, ".kdsp") == 0) userPresets.push_back(f.substr(0, f.size() - 5));
-            }
-            closedir(dir);
-        }
+        for (const std::string& file : fs::list(d, ".kdsp")) userPresets.push_back(file.substr(0, file.size() - 5));
         std::sort(userPresets.begin(), userPresets.end(), [](const std::string& a, const std::string& b) {
             std::string la = a, lb = b;
             for (auto& c : la) c = (char)std::tolower((unsigned char)c);
@@ -1538,7 +1775,7 @@ protected:
     bool saveUserPreset(const std::string& name)
     {
         const std::string path = userPresetPath(name);
-        FILE* fp = std::fopen(path.c_str(), "wb");
+        FILE* fp = fs::open(path, "wb");
         if (!fp) return false;
         std::fprintf(fp, "KDSP16-PRESET 2\nNAME %s\nPATTERN %d\n", name.c_str(), editPattern());
         for (int i = 0; i < kGlobalBase + gOUT_STEP; ++i) {
@@ -1546,7 +1783,7 @@ protected:
             std::fprintf(fp, "V %d %.4f\n", i, values[i]);
         }
         for (int t = 0; t < kTracks; ++t)
-            if (uiSmp[t]) std::fprintf(fp, "SMP %d %s\n", t, smp::encode(*uiSmp[t]).c_str());
+            if (uiSmp[t]) std::fprintf(fp, "SMP %s\n", smp::encodeLine(t, *uiSmp[t]).c_str());
         std::fprintf(fp, "BANK\n%s", serializeBank(*bank).c_str());
         std::fclose(fp);
         return true;
@@ -1554,7 +1791,7 @@ protected:
 
     void loadUserPreset(const std::string& name, bool withPatterns)
     {
-        FILE* fp = std::fopen(userPresetPath(name).c_str(), "rb");
+        FILE* fp = fs::open(userPresetPath(name), "rb");
         if (!fp) { presetMsg = "Could not open " + name; return; }
         std::string all; char buf[4096]; size_t n;
         while ((n = std::fread(buf, 1, sizeof(buf), fp)) > 0) all.append(buf, n);
@@ -1631,7 +1868,7 @@ protected:
             presetName = saveName;
             presetMsg = "Saved \"" + saveName + "\"";
             refreshUserPresets();
-            presetTabUser = true;
+            presetPage = 1;
         } else presetMsg = "Could not write the preset file";
         overlay = ovNone; repaint();
     }
@@ -1658,8 +1895,16 @@ protected:
         button(saveOk(), saveConfirm ? "REPLACE" : "SAVE", true, 12.f);
     }
 
+    bool presetType(uint c)
+    {
+        if (c >= 32 && c < 127 && presetSearch.size() < 24 && !(presetSearch.empty() && c == ' ')) {
+            presetSearch.push_back((char)c); presetSel = -1; presetScroll = 0; morphReset(); rebuildPresetView(); repaint();
+        }
+        return true;
+    }
     bool onCharacterInput(const CharacterInputEvent& ev) override
     {
+        if (overlay == ovPresets) return presetType(ev.character);
         if (overlay != ovSave) return false;
         const uint c = ev.character;
         if (c >= 32 && c < 127 && saveName.size() < 28) {
@@ -1884,7 +2129,7 @@ protected:
         // normalize to -1 dBFS so every sample plays as loud as the synthesized drums
         if (peak > 1e-4f) { const float g = 0.89f / peak; for (float& v : d->pcm) v *= g; }
         uiSmp[t] = d;
-        setState("smp", (std::to_string(t) + " " + smp::encode(*d)).c_str());
+        setState("smp", smp::encodeLine(t, *d).c_str());
         if (machineOf(t) != mSAMPLE) {
             setMachine(t, mSAMPLE);
             // a fresh SAMPLE track: neutral tone shaping (the previous machine's filter / envelope / crush made
@@ -1948,9 +2193,15 @@ protected:
 
     void uiIdle() override
     {
+        if (!tipShown && !tipNone && drag == dkNone && overlay == ovNone && hovX >= 0.f && nowSec() - hovSince > 0.8 && nowSec() > tipBlockUntil) {
+            tipText = tipAt(hovX, hovY);
+            if (!tipText.empty()) { tipShown = true; repaint(); }
+            else tipNone = true;   // nothing here: do not test again until the mouse moves
+        }
         flushPv();
         if (updater && (int)updater->getState() != updLastState) { updLastState = (int)updater->getState(); repaint(); }
         if (smpMsgTicks > 0 && --smpMsgTicks == 0) repaint();
+        if (!patMsg.empty() && nowSec() > patMsgUntil) { patMsg.clear(); repaint(); }
         // persist the window size a moment after the user stops resizing
         if (viewDirty && drag != (DragKind)dkResize && ++viewDirtyTicks > 30) saveView();
     }
@@ -2021,6 +2272,7 @@ protected:
     // ------------------------------------------------------------------ whole-state helpers (presets, random, undo)
     void applyState(const float* nv, const Bank* nb)
     {
+        const bool wasRestoring = restoring; restoring = true;   // the changes below are one undo step, not many
         for (int i = 0; i < kGlobalBase + gOUT_STEP; ++i) {
             if (i == kGlobalBase + gPLAY || i == kGlobalBase + gPATTERN) continue;
             if (std::fabs(values[i] - nv[i]) > 1e-4f) setParamGesture((uint32_t)i, nv[i]);
@@ -2029,24 +2281,53 @@ protected:
             *bank = *nb;
             setState("bank", serializeBank(*bank).c_str());
         }
+        restoring = wasRestoring;
         repaint();
     }
 
+    struct Snap { std::vector<float> values; std::string bank; std::string what; };
+    static double nowSec() { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
+    Snap capture(const char* what) const { Snap s; s.values.assign(values, values + kTotalParams); s.bank = serializeBank(*bank); s.what = what; return s; }
     void snapshot(const char* what)
     {
-        undoValues.assign(values, values + kTotalParams);
-        undoBank = serializeBank(*bank);
-        undoValid = true; undoWhat = what;
+        if (restoring) return;
+        undoStack.push_back(capture(what));
+        if (undoStack.size() > kUndoDepth) undoStack.pop_front();
+        redoStack.clear();
+        lastSnapAt = nowSec(); lastSnapWhat = what;
+    }
+    // one snapshot per gesture: nothing within 0.15 s of the last one, and the same kind of edit merges for `window` s
+    void autoSnap(const char* what, double window)
+    {
+        if (restoring) return;
+        const double t = nowSec();
+        if (t - lastSnapAt < 0.15 || (lastSnapWhat == what && t - lastSnapAt < window)) { if (lastSnapWhat == what) lastSnapAt = t; return; }
+        snapshot(what);
+    }
+    void restoreSnap(const Snap& s)
+    {
+        std::unique_ptr<Bank> b(new Bank());
+        deserializeBank(*b, s.bank.c_str());
+        std::vector<float> v = s.values;
+        applyState(v.data(), b.get());
+        lastSnapAt = -10.0; lastSnapWhat.clear();
+    }
+    void redo()
+    {
+        if (redoStack.empty()) return;
+        Snap s = std::move(redoStack.back()); redoStack.pop_back();
+        undoStack.push_back(capture(s.what.c_str()));
+        restoreSnap(s);
+        repaint();
     }
 
     void undo()
     {
-        if (!undoValid) return;
-        std::unique_ptr<Bank> b(new Bank());
-        deserializeBank(*b, undoBank.c_str());
-        std::vector<float> v = undoValues;
-        undoValid = false;
-        applyState(v.data(), b.get());
+        if (undoStack.empty()) return;
+        Snap s = std::move(undoStack.back()); undoStack.pop_back();
+        redoStack.push_back(capture(s.what.c_str()));
+        restoreSnap(s);
+        repaint();
     }
 
     void randomize(int what)
@@ -2314,6 +2595,18 @@ protected:
             }
             return true;
         }
+        if (overlay == ovPresets && ev.press) {
+            if (ev.key == kKeyBackspace || ev.key == kKeyDelete) {
+                if (!presetSearch.empty()) { presetSearch.pop_back(); presetSel = -1; morphReset(); rebuildPresetView(); repaint(); }
+                return true;
+            }
+            if (ev.key == kKeyEscape && !presetSearch.empty()) { presetSearch.clear(); presetSel = -1; morphReset(); rebuildPresetView(); repaint(); return true; }
+            if ((ev.key == kKeyEnter || ev.key == '\n') && presetSel >= 0) { loadAnyPreset(presetSel, true); overlay = ovNone; repaint(); return true; }
+        }
+        if (ev.press && (ev.mod & (kModifierControl | kModifierSuper)) && overlay == ovNone) {
+            if (ev.key == 'z' || ev.key == 'Z') { if (ev.mod & kModifierShift) redo(); else undo(); return true; }
+            if (ev.key == 'y' || ev.key == 'Y') { redo(); return true; }
+        }
         if (ev.press && ev.key == kKeyEscape) {
             if (overlay != ovNone) overlay = ovNone; else clearSel();
             repaint(); return true;
@@ -2321,9 +2614,70 @@ protected:
         return false;
     }
 
+
+    // ------------------------------------------------------------------ tooltips (after a short hover)
+    float hovX = -1.f, hovY = -1.f; double hovSince = 0.0, tipBlockUntil = 0.0; bool tipShown = false, tipNone = false; std::string tipText;
+    std::string tipAt(float x, float y)
+    {
+        for (int k = 0; k < 8; ++k)
+            if (knob(k).in(x, y)) {
+                if (euclidSlot(k)) return k == 6 ? "EUCLID - spreads this many hits evenly over the track. Replaces the trigs of the track (undo restores)."
+                                                 : "ROTATE - moves the Euclidean rhythm later or earlier.";
+                if (kitField(k) >= 0) return std::string(kKitNames[kitField(k)]) + " - " + kKitHelp[kitField(k)];
+                const int pi = pageParam(page, k);
+                if (pi < 0) return "";
+                const int m = machineOf(selTrack);
+                std::string t = std::string(trackParamName(m, pi)) + " - " + (pi < 8 ? kMachineHelp[m].p[pi] : kFxHelp[pi - 8]);
+                return t + " Double-click: default. Shift-drag: fine.";
+            }
+        for (int k = 0; k < 8; ++k)
+            if (mKnob(k).in(x, y) && masterParam(mpage, k) >= 0) {
+                const int g = masterParam(mpage, k);
+                if (g == gECHO_MODEL || g == gECHO_MOD) return std::string("Echo ") + kEchoModelNames[echoModelIndex((int)gp(gECHO_MODEL))] + ": " + kEchoModelInfo[echoModelIndex((int)gp(gECHO_MODEL))];
+                if (g == gREV_MODEL || g == gREV_MOD) return std::string("Reverb ") + kReverbModelNames[reverbModelIndex((int)gp(gREV_MODEL))] + ": " + kReverbModelInfo[reverbModelIndex((int)gp(gREV_MODEL))];
+                return "";
+            }
+        if (undoBtn().in(x, y)) return "Click: undo (Ctrl+Z). Right-click: redo (Ctrl+Shift+Z). Up to 40 steps back.";
+        if (trkCopy().in(x, y)) return "Copy this track: its steps and its sound.";
+        if (trkPaste().in(x, y)) return "Click: paste the copied steps. Right-click: paste the copied sound.";
+        if (trkClear().in(x, y)) return "Remove every step of this track in this pattern.";
+        if (patMidi().in(x, y)) return "Export this pattern as a MIDI file (Documents / Kinetik / KDSP-16 MIDI): channel 10, notes 36-51 = tracks 1-16, accents at velocity 127. Drag it from the folder onto a MIDI track.";
+        if (lockClrAll().in(x, y)) return "Remove every parameter lock of this track in this pattern.";
+        if (shiftL().in(x, y)) return "Move the steps of this track one step earlier.";
+        if (shiftR().in(x, y)) return "Move the steps of this track one step later.";
+        if (fillBtn().in(x, y)) return "Hold the FILL condition on: steps set to FILL play.";
+        if (recBtn().in(x, y)) return "REC: knob moves while playing are recorded as parameter locks.";
+        { static const char* rt[4] = {"New random sound for this track", "New random steps for this track", "New random pattern on every track", "Random kit, effects and pattern"}; for (int i = 0; i < 4; ++i) if (rndBtn(i).in(x, y)) return std::string(rt[i]) + " (undo restores).";  }
+        for (int t = 0; t < kTracks; ++t) {
+            if (soloBtn(t).in(x, y)) return "Solo: only the soloed tracks play.";
+            if (muteBtn(t).in(x, y)) return "Mute this track.";
+            if (trackBtn(t).in(x, y)) return "Click: edit this track. MIDI notes 36-51 play tracks 1-16.";
+        }
+        for (int i = 0; i < 16; ++i)
+            if (stepBtn(i).in(x, y)) return "Click: trig on / off. Right-click: select the step to lock parameters (several with more right-clicks).";
+        if (presetBtn().in(x, y)) return "Factory and user presets. Double-click a preset to load sound and patterns.";
+        return "";
+    }
+    void drawTip()
+    {
+        if (tipText.empty()) return;
+        const float wMax = 300.f;
+        fontFace(NANOVG_DEJAVU_SANS_TTF); fontSize(12.f); textAlign(ALIGN_LEFT | ALIGN_TOP); textLineHeight(1.25f);
+        float b[4]; textBoxBounds(0, 0, wMax, tipText.c_str(), nullptr, b);
+        const float w = b[2] - b[0] + 20.f, h = b[3] - b[1] + 14.f;
+        float x = hovX + 14.f, y = hovY + 18.f;
+        if (x + w > W - 6) x = W - 6 - w;
+        if (y + h > H - 6) y = hovY - h - 10.f;
+        beginPath(); roundedRect(x + 2, y + 3, w, h, 6); fillColor(Color(0, 0, 0, 0.25f)); fill();
+        box({x, y, w, h}, th->panel, 6.f); frame({x, y, w, h}, th->text, 6.f);
+        fillColor(th->text); textBox(x + 10, y + 7, wMax, tipText.c_str(), nullptr);
+    }
+
     bool onMouse(const MouseEvent& ev) override
     {
         const float x = ev.pos.getX() / sx, y = ev.pos.getY() / sx;
+        if (tipShown) { tipShown = false; repaint(); }
+        tipBlockUntil = nowSec() + 1.0;   // no tooltip right after a click
         if (!ev.press) {
             if (drag == dkTrackKnob && std::fabs(y - dragY) < 3.f && (page == pgLfo1 || page == pgLfo2) && (dragIndex == 4 || dragIndex == 5)) {
                 editParameter(selTrack * kTrackParams + pageParam(page, dragIndex), false);
@@ -2336,6 +2690,7 @@ protected:
             if (drag == dkTempo) editParameter(kGlobalBase + gTEMPO, false);
             if (drag == dkSwing || drag == dkAccent) sendPatternSettings();
             if (drag == (DragKind)dkResize) saveView();
+            if (drag == dkMorph) morphApply();
             if (drag != dkNone) { drag = dkNone; repaint(); }
             return true;
         }
@@ -2398,7 +2753,7 @@ protected:
         }
         if (recBtn().in(x, y)) { rec = !rec; repaint(); return true; }
         for (int i = 0; i < 4; ++i) if (rndBtn(i).in(x, y)) { randomize(i); return true; }
-        if (undoBtn().in(x, y)) { undo(); return true; }
+        if (undoBtn().in(x, y)) { if (right) redo(); else undo(); return true; }   // right-click = redo
         if (presetBtn().in(x, y)) { openPresets(); return true; }
         if (saveBtn().in(x, y)) { openSave(); return true; }
         if (machPrev().in(x, y)) { setMachine(selTrack, machineOf(selTrack) - 1); return true; }
@@ -2414,6 +2769,12 @@ protected:
         for (int i = 0; i < kPages; ++i) if (pageTab(i).in(x, y)) { page = i; repaint(); return true; }
         for (int i = 0; i < 3; ++i) if (mTab(i).in(x, y)) { mpage = i; repaint(); return true; }
 
+        for (int k = 6; k < 8; ++k)
+            if (euclidSlot(k) && knob(k).in(x, y)) {
+                if (dbl) { (k == 6 ? eucHits : eucRot)[selTrack] = 0; applyEuclid(selTrack); repaint(); return true; }
+                drag = dkEuclid; dragIndex = k; dragY = y; dragStart = (float)(k == 6 ? eucHits : eucRot)[selTrack];
+                repaint(); return true;
+            }
         for (int k = 0; k < 8; ++k) {
             if (!knob(k).in(x, y) || kitField(k) < 0) continue;
             if (dbl) { setKit(selTrack, kitField(k), 0); return true; }
@@ -2455,6 +2816,7 @@ protected:
         if (patPaste().in(x, y) && patClip >= 0) {
             char b[32]; std::snprintf(b, sizeof(b), "pc %d %d", editPattern(), patClip); sendCmd(b); repaint(); return true;
         }
+        if (patMidi().in(x, y)) { exportMidi(); repaint(); return true; }
         if (patClear().in(x, y)) { char b[32]; std::snprintf(b, sizeof(b), "cp %d", editPattern()); sendCmd(b); repaint(); return true; }
 
         for (int i = 0; i < kModes; ++i) if (modeBtn(i).in(x, y)) { mode = i; repaint(); return true; }
@@ -2488,7 +2850,27 @@ protected:
             if (dbl) { p.accent = 64; sendPatternSettings(); repaint(); return true; }
             drag = dkAccent; dragY = y; dragStart = p.accent; return true;
         }
-        if (trkCopy().in(x, y)) { trackClip = trackToHex(p, selTrack); repaint(); return true; }
+        if (trkCopy().in(x, y)) {   // the steps and the sound of the track
+            trackClip = trackToHex(p, selTrack);
+            soundClip.assign(&values[selTrack * kTrackParams], &values[selTrack * kTrackParams] + kTrackParams);
+            soundClipMachine = machineOf(selTrack);
+            repaint(); return true;
+        }
+        if (trkPaste().in(x, y) && right && !soundClip.empty()) {   // right-click PASTE = the copied sound
+            snapshot("paste sound");
+            const bool wasR = restoring; restoring = true;
+            if (machineOf(selTrack) != soundClipMachine) setMachine(selTrack, soundClipMachine);
+            for (int k = 0; k < kTrackParams; ++k) setParamGesture(selTrack * kTrackParams + k, soundClip[(size_t)k]);
+            restoring = wasR;
+            repaint(); return true;
+        }
+        for (int dir : {-1, 1})
+            if ((dir < 0 ? shiftL() : shiftR()).in(x, y)) {
+                std::unique_ptr<Pattern> tmp(new Pattern(p));
+                tmp->rotateTrack(selTrack, dir);
+                sendCmd("tr " + std::to_string(editPattern()) + " " + std::to_string(selTrack) + " " + trackToHex(*tmp, selTrack));
+                repaint(); return true;
+            }
         if (trkPaste().in(x, y) && !trackClip.empty()) {
             sendCmd("tr " + std::to_string(editPattern()) + " " + std::to_string(selTrack) + " " + trackClip); repaint(); return true;
         }
@@ -2521,7 +2903,15 @@ protected:
 
     bool onMotion(const MotionEvent& ev) override
     {
+        {   // hover tracking for tooltips
+            const float hx = ev.pos.getX() / sx, hy = ev.pos.getY() / sx;
+            if (std::fabs(hx - hovX) > 3.f || std::fabs(hy - hovY) > 3.f) {
+                hovX = hx; hovY = hy; hovSince = nowSec(); tipNone = false;
+                if (tipShown) { tipShown = false; repaint(); }
+            }
+        }
         if (drag == dkNone) return false;
+        if (drag == dkMorph) { morphDrag(ev.pos.getX() / sx, false); return true; }
         if (drag == (DragKind)dkResize) {
             // window pixels: grow along the diagonal, keep the proportions
             const double dx = ev.pos.getX() - grabX, dy = (ev.pos.getY() - grabY) * (double)W / H;
@@ -2536,6 +2926,14 @@ protected:
         const float v = dragStart + (dragY - y) * sens;
         switch (drag) {
         case dkTrackKnob: setKnob(dragIndex, v); break;
+        case dkEuclid: {
+            const int n = tlen(selTrack);
+            int nv = (int)std::lround(dragStart + (dragY - y) * 0.08f);
+            nv = dragIndex == 6 ? clampi(nv, 0, n) : clampi(nv, -n + 1, n - 1);
+            int& cur = (dragIndex == 6 ? eucHits : eucRot)[selTrack];
+            if (nv != cur) { cur = nv; applyEuclid(selTrack); repaint(); }
+            break;
+        }
         case dkKit: {
             const int f = kitField(dragIndex);
             if (f >= 0) {
@@ -2567,6 +2965,12 @@ protected:
         }
         if (d == 0.f || overlay != ovNone) return false;
         for (int k = 0; k < 8; ++k) {
+            if (knob(k).in(x, y) && euclidSlot(k)) {
+                const int n = tlen(selTrack);
+                int& cur = (k == 6 ? eucHits : eucRot)[selTrack];
+                cur = k == 6 ? clampi(cur + (int)d, 0, n) : clampi(cur + (int)d, -n + 1, n - 1);
+                applyEuclid(selTrack); repaint(); return true;
+            }
             if (knob(k).in(x, y) && kitField(k) >= 0) {
                 const int f = kitField(k);
                 setKit(selTrack, f, clampi(bank->kit[selTrack][f] + (int)d, 0, kKitMax[f])); return true;
@@ -2606,6 +3010,22 @@ private:
     uint lastClickTime = 0; float lastX = -100, lastY = -100;
     int patClip = -1;
     std::string trackClip;
+    std::vector<float> soundClip; int soundClipMachine = 0;
+    // Euclidean rhythm on the TRACK page (knobs 7 and 8): hits spread evenly over the track length, then rotated
+    int eucHits[kTracks] = {}, eucRot[kTracks] = {};
+    bool euclidSlot(int k) const { return page == pgTrack && (k == 6 || k == 7); }
+    void applyEuclid(int t)
+    {
+        const int n = tlen(t);
+        const int k = clampi(eucHits[t], 0, n), r = ((eucRot[t] % n) + n) % n;
+        std::unique_ptr<Pattern> tmp(new Pattern(pat()));
+        for (int i = 0; i < n; ++i) {
+            const int src = ((i - r) % n + n) % n;
+            const bool on = k > 0 && (src * k) % n < k;   // Bresenham form of the Euclidean (Bjorklund) rhythm
+            tmp->flags[t][i] = on ? (uint8_t)(tmp->flags[t][i] | sfTrig) : (uint8_t)(tmp->flags[t][i] & ~sfTrig);
+        }
+        sendCmd("tr " + std::to_string(editPattern()) + " " + std::to_string(t) + " " + trackToHex(*tmp, t));
+    }
     bool rec = false, recDirty = false; float recVal = 0;
     bool fillOn = false;
     int skin = kDefaultSkin;
@@ -2613,16 +3033,72 @@ private:
     FontId fonts[kFontCount] = {};
     NanoImage dotImage, haloImage;
     int presetSel = -1, presetScroll = 0;
-    bool presetTabUser = false, deleteArmed = false, saveConfirm = false;
+    bool deleteArmed = false, saveConfirm = false;
+    std::vector<PEntry> presetView; std::vector<std::string> favs; std::string presetSearch; int presetPage = 0;
+    float morphPos = 0.f; bool morphReady = false; double morphLast = 0.0;
+    std::vector<float> morphBase, morphTarget; std::vector<uint8_t> morphKind; uint8_t morphMach[2][kTracks] = {};   // kind: 0 fixed, 1 blend, 2 switch at 50 %
     std::vector<std::string> userPresets;
     std::string presetMsg, saveName;
     bool viewDirty = false; int viewDirtyTicks = 0;
     double resizeStartW = 0, grabX = 0, grabY = 0;
     std::string presetName = "Init";
+    std::string patMsg; double patMsgUntil = 0;
+
+    // ------------------------------------------------------------------ MIDI export of the edited pattern
+    // Every trig of the pattern over its master length, with swing, micro-timing and ratchets; conditions and
+    // probabilities are not applied (each trig is written once). Notes 36-51 on channel 10 play the tracks back.
+    void exportMidi()
+    {
+        const int pi = editPattern();
+        const Pattern& P = bank->patterns[pi];
+        const double sb = 0.25 / kScaleMult[P.scale % 7];
+        const int len = P.length ? P.length : 16;
+        std::vector<std::string> names; std::vector<midi::Note> notes;
+        for (int t = 0; t < kTracks; ++t) {
+            bool any = false;
+            for (int k = 0; k < len; ++k) {
+                const int s = P.trackStep(t, k);
+                if (!(P.flags[t][s] & sfTrig)) continue;
+                if (!any) {
+                    char nb[48]; std::snprintf(nb, sizeof(nb), "%d %s", t + 1, kMachineDefs[machineOf(t)].name);
+                    names.push_back(nb); any = true;
+                }
+                const int n = std::max<int>(1, P.ratch[t][s]);
+                const double base = k * sb + ((k & 1) ? (P.swing / 100.0 * 2.0 - 1.0) * sb : 0.0) + P.micro[t][s] / 24.0 * sb;
+                for (int j = 0; j < n; ++j) {
+                    midi::Note m;
+                    m.track = (int)names.size() - 1; m.channel = 9; m.note = 36 + t;
+                    m.velocity = (P.flags[t][s] & sfAccent) ? 127 : 100;
+                    m.start = std::max(0.0, base + j * sb / n); m.length = sb / n * 0.5;
+                    notes.push_back(m);
+                }
+            }
+        }
+        if (notes.empty()) { showPatMsg("PATTERN IS EMPTY"); return; }
+        char fn[32]; std::snprintf(fn, sizeof(fn), "A%02d", pi + 1);
+        std::string title = cleanName(presetName); if (title.empty()) title = "KDSP-16";
+        const std::string dir = fs::exportDir("KDSP-16 MIDI");
+        if (dir.empty()) { showPatMsg("NO DOCUMENTS FOLDER"); return; }
+        const std::string path = dir + title + " " + fn + ".mid";
+        const std::string data = midi::build(title + " " + fn, std::clamp(gp(gTEMPO), 20.f, 300.f), len * sb, names, notes);
+        FILE* f = fs::open(path, "wb");
+        if (!f) { showPatMsg("EXPORT FAILED"); return; }
+        const bool ok = std::fwrite(data.data(), 1, data.size(), f) == data.size();
+        std::fclose(f);
+        if (!ok) { showPatMsg("EXPORT FAILED"); return; }
+        showPatMsg(std::string(fn) + ".MID SAVED");
+        upd::openFolder(dir);
+    }
+    void showPatMsg(const std::string& m) { patMsg = m; patMsgUntil = nowSec() + 4.0; }
     lic::Info licInfo = lic::findInstalled("KDSP-16");
     std::string licMsg;
     uint32_t rndCounter = 0x51ED;
-    bool undoValid = false; std::vector<float> undoValues; std::string undoBank; const char* undoWhat = "";
+    // ---- undo / redo: a stack of whole states (parameters + bank). Random, presets and undo itself push one each;
+    // knob moves and sequencer edits push one per gesture (edits closer together than a short window merge).
+    std::deque<Snap> undoStack, redoStack;
+    bool restoring = false;
+    double lastSnapAt = -10.0; std::string lastSnapWhat;
+    static constexpr size_t kUndoDepth = 40;
 
     DISTRHO_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(KinetikUI)
 };

@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.10.0
+
+- **Undo on 40 levels**: UNDO now steps back through knob moves, step edits, randomizes, presets and pastes, one
+  action at a time (Ctrl/Cmd+Z). Right-click on UNDO, Ctrl+Shift+Z or Ctrl+Y = redo. The button shows what the next
+  undo will revert.
+- **Tooltips**: hover a knob or a button for a moment to see what it does.
+- **Preset browser**: type to search (name and description), a FAVOURITES tab (click the star of any preset), and a
+  **MORPH** slider that moves the current sound towards the selected preset (switches and machines change at 50 %;
+  tempo and patterns are not touched; one undo step per move).
+- **MIDI export**: MIDI in the PATTERNS box writes the edited pattern as a .mid file into
+  Documents / Kinetik / KDSP-16 MIDI and opens the folder: drag it onto a MIDI track of the host.
+- **Track tools**: two arrow buttons move the steps of the track one step earlier / later (locks follow); COPY also
+  copies the track's sound and right-click on PASTE pastes the sound only; EUCLID and ROTATE on the TRACK page spread
+  N hits evenly over the track.
+- **Anti-aliased DRIVE** (track and master): much less aliasing (harsh, unrelated high tones) when driven hard,
+  same level and tone.
+- **Lower CPU**: the echo and reverb sleep while nothing is sent to them and their tail has died away; the reverb's
+  modulation is computed less often. With the demo preset: playing 2.0 % -> 1.1 % of one core, stopped 1.0 % -> 0.4 %.
+- Windows: user presets, favourites and licences work in user folders whose name uses other alphabets.
+- Updates: the downloaded installer is kept in a private folder of the user (Kinetik / Updates) until it is opened.
+- Tests: the sound of every factory preset is now checked automatically at each build.
+- **Smaller projects with samples**: SAMPLE data is packed without any loss (2 to 10 times smaller depending
+  on the sound; noisy sounds gain little). Versions before 0.10 cannot read samples saved by 0.10 (they leave the SAMPLE track silent
+  instead of playing noise); projects and presets saved before still load.
+- Preset IDM Glitch: its parameter locks were not the same on macOS as on Windows and Linux; they now are (macOS
+  users hear the Windows / Linux version).
+
 ## 0.9.4
 
 - Windows: the update check works when the user folder has accents (e.g. C:\Users\Hélène); before, it always said

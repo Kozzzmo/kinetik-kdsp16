@@ -33,6 +33,20 @@ struct Pattern {
         std::memset(locks, kNoLock, sizeof(locks));
         std::memset(cond, 0, sizeof(cond)); std::memset(micro, 0, sizeof(micro)); std::memset(ratch, 0, sizeof(ratch));
     }
+    // move every step of track t one step later (dir > 0) or earlier, wrapping inside the track length
+    void rotateTrack(int t, int dir)
+    {
+        const int n = trackLen[t] ? trackLen[t] : 16;
+        if (n < 2) return;
+        auto rot = [&](auto* a) {
+            if (dir > 0) { auto last = a[n - 1]; for (int i = n - 1; i > 0; --i) a[i] = a[i - 1]; a[0] = last; }
+            else { auto first = a[0]; for (int i = 0; i < n - 1; ++i) a[i] = a[i + 1]; a[n - 1] = first; }
+        };
+        rot(flags[t]); rot(cond[t]); rot(micro[t]); rot(ratch[t]);
+        uint8_t tmpL[kLockable];
+        if (dir > 0) { std::memcpy(tmpL, locks[t][n - 1], kLockable); for (int i = n - 1; i > 0; --i) std::memcpy(locks[t][i], locks[t][i - 1], kLockable); std::memcpy(locks[t][0], tmpL, kLockable); }
+        else { std::memcpy(tmpL, locks[t][0], kLockable); for (int i = 0; i < n - 1; ++i) std::memcpy(locks[t][i], locks[t][i + 1], kLockable); std::memcpy(locks[t][n - 1], tmpL, kLockable); }
+    }
     void clearTrack(int t)
     {
         std::memset(flags[t], 0, sizeof(flags[t]));
