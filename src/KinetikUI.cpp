@@ -516,6 +516,10 @@ protected:
         box(r, th->panel, th->radius + 2.f);
         frame(r, th->panelEdge, th->radius + 2.f, th->panelEdgeWidth);
     }
+    // prototype skins with their own signature drawing
+    bool isPartition() const { return std::strcmp(th->name, "PARTITION") == 0; }
+    bool isQuai() const { return std::strcmp(th->name, "QUAI") == 0; }
+    void flapSplit(const R& r) { if (!isQuai()) return; beginPath(); rect(r.x + 1, r.cy() - 0.5f, r.w - 2, 1.2f); fillColor(th->bg); fill(); }
     void button(const R& r, const char* s, bool on, float size = 11.5f)
     {
         if (on) box(r, th->selFill);
@@ -680,6 +684,7 @@ protected:
         if (running && pp != ep) std::snprintf(b, sizeof(b), "A%02d>A%02d", pp + 1, ep + 1);
         else std::snprintf(b, sizeof(b), "A%02d", ep + 1);
         number(pr.x + pr.w - 10, pr.cy() + 1, b, running && pp != ep ? 16.f : 20.f, th->lcdText, ALIGN_RIGHT | ALIGN_MIDDLE);
+        flapSplit(pr);
 
         const bool play = gp(gPLAY) > 0.5f;
         {
@@ -693,6 +698,7 @@ protected:
         box(tb, th->lcdBg); frame(tb, th->panelEdge, -1.f, th->panelEdgeWidth);
         std::snprintf(b, sizeof(b), "%.1f", gp(gTEMPO));
         number(tb.x + 70, tb.cy() + 1, b, 20.f, th->lcdText, ALIGN_RIGHT | ALIGN_MIDDLE);
+        flapSplit(tb);
         label(tb.x + 75, tb.cy() + 2, "BPM", 10.f, th->lcdDim, ALIGN_LEFT | ALIGN_MIDDLE);
         const R sk = skinBtn();
         box(sk, th->btnFill); frame(sk, th->btnEdge);
@@ -1372,7 +1378,22 @@ protected:
             else if (isSel(s)) frame(r, th->lock, -1.f, s == lockStep ? 3.f : 2.f);
             else frame(r, Color(th->btnEdge, bg, 0.5f));
             const R led{r.x + 8, r.y + 9, r.w - 16, 12};
-            if (f & sfTrig && inLen) {
+            if (isQuai()) {   // split-flap tile behind the step number
+                const R t{r.x + 14, r.y + 31, r.w - 28, 30};
+                box(t, th->inner, 2.f);
+                beginPath(); rect(t.x, t.cy() - 0.5f, t.w, 1.2f); fillColor(th->bg); fill();
+            }
+            if (isPartition() && (f & sfTrig) && inLen) {
+                // movement-score marks: the shape tells the kind of trig, colour only confirms it
+                if (f & sfAccent) {
+                    box(led, th->panel, 0.f); frame(led, th->lock, 0.f, 1.5f);
+                    save(); scissor(led.x, led.y, led.w, led.h);
+                    beginPath();
+                    for (float hx = led.x - led.h; hx < led.x + led.w; hx += 4.f) { moveTo(hx, led.y + led.h); lineTo(hx + led.h, led.y); }
+                    strokeColor(th->lock); strokeWidth(1.4f); stroke();
+                    restore();
+                } else box(led, th->text, 0.f);
+            } else if (f & sfTrig && inLen) {
                 const Color lc = (f & sfAccent) ? th->lock : th->accent;
                 if (th->glow) { beginPath(); rect(led.x - 4, led.y - 4, led.w + 8, led.h + 8); fillPaint(boxGradient(led.x, led.y, led.w, led.h, 2, 8, Color(lc, Color(0, 0, 0, 0.f), 0.5f), Color(0, 0, 0, 0.f))); fill(); }
                 box(led, lc, 1.5f);
@@ -1382,6 +1403,7 @@ protected:
             if (f & sfSlide) box({led.x, r.y + 25, led.w, 3}, th->lock, 1.f);
             char nb[8]; std::snprintf(nb, sizeof(nb), "%d", s + 1);
             number(r.cx(), r.y + 45, nb, 18.f, inLen ? th->stepText : th->faint);
+            if (isQuai()) flapSplit({r.x + 14, r.y + 31, r.w - 28, 30});
             if (p.hasLocks(selTrack, s)) { beginPath(); circle(r.cx(), r.y + 62, 2.8f); fillColor(th->lock); fill(); }
             if (inLen && (f & sfTrig)) {
                 std::string ex;
