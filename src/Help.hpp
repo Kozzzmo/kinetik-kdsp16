@@ -327,7 +327,7 @@ static const char* const kKitHelp[kKitFields] = {
     "Audio output: MAIN or the separate stereo outputs OUT 2-4 (dry; the delay/reverb sends still go to the main mix).",
     "MIDI channel: notes on this channel play the track chromatically (C3 = 60 = the sound as set). OFF = drum map only.",
     "FM snap: the FM RATIO of the FM machines snaps to musical values (0.5, 1, 1.5, 2, 3, 4 ... 12) for tuned FM.",
-    "Oscillator wave of the tone machines (KICK, TOM, CLAVE): sine, triangle or square.",
+    "Oscillator wave of the tone machines (KICK, TOM, CLAVE): sine, triangle or square.",    "Speed of this track against the pattern: 2x plays its steps twice as fast, 1/2x half as fast, 3/2x and 3/4x for triplet feels. Its length still counts steps.",
 };
 
 } // namespace kn

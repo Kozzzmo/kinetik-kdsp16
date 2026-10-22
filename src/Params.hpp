@@ -49,9 +49,16 @@ inline int filterTypeValue(int i) { return (i * 128 + kFilterTypes - 1) / kFilte
 inline float cutoffHz(float v) { return 20.f * std::pow(1000.f, (v < 0 ? 0 : (v > 127 ? 127 : v)) / 127.f); }
 
 // ---- kit settings shown on the TRACK page (not host parameters) ----
-enum KitField { kfChoke = 0, kfOut, kfMidi, kfFmq, kfOsc, kKitFields };
-static const char* const kKitNames[kKitFields] = {"CHOKE", "OUTPUT", "MIDI CH", "FM SNAP", "OSC WAVE"};
-static const int kKitMax[kKitFields] = {4, 3, 16, 1, 2};
+// output parameter out_step = song position in 1/kFineSteps of a pattern step, modulo 32768 steps (-1 = stopped)
+static constexpr int kFineSteps = 24;
+// per-track sequencer speed (kit field SPEED): the track's steps last 1 / mult of the pattern's steps
+static constexpr int kTrackSpeeds = 8;
+static const float kTrackSpeedMult[kTrackSpeeds] = {1.f, 2.f, 4.f, 1.5f, 0.75f, 0.5f, 0.25f, 0.125f};
+static const char* const kTrackSpeedNames[kTrackSpeeds] = {"1x", "2x", "4x", "3/2x", "3/4x", "1/2x", "1/4x", "1/8x"};
+inline float trackSpeedMult(int v) { return kTrackSpeedMult[v < 0 ? 0 : (v >= kTrackSpeeds ? kTrackSpeeds - 1 : v)]; }
+enum KitField { kfChoke = 0, kfOut, kfMidi, kfFmq, kfOsc, kfSpeed, kKitFields };
+static const char* const kKitNames[kKitFields] = {"CHOKE", "OUTPUT", "MIDI CH", "FM SNAP", "OSC WAVE", "SPEED"};
+static const int kKitMax[kKitFields] = {4, 3, 16, 1, 2, kTrackSpeeds - 1};
 inline const char* kitValueText(int field, int v, char* buf, int n)
 {
     static const char* choke[5] = {"OFF", "A", "B", "C", "D"};
@@ -62,6 +69,7 @@ inline const char* kitValueText(int field, int v, char* buf, int n)
     case kfOut: return out[v < 0 ? 0 : (v > 3 ? 3 : v)];
     case kfMidi: if (v <= 0) return "OFF"; std::snprintf(buf, n, "CH %d", v); return buf;
     case kfFmq: return v ? "ON" : "OFF";
+    case kfSpeed: return kTrackSpeedNames[v < 0 ? 0 : (v >= kTrackSpeeds ? kTrackSpeeds - 1 : v)];
     default: return osc[v < 0 ? 0 : (v > 2 ? 2 : v)];
     }
 }
@@ -91,7 +99,11 @@ enum GlobalParam {
     gREV_SIZE, gREV_DAMP, gREV_GATE, gREV_HPF, gREV_PRE, gREV_LEV,
     gEQ_LOW, gEQ_HIGH, gCMP_THR, gCMP_RAT, gCMP_ATK, gCMP_REL, gDRIVE, gVOLUME,
     gECHO_MODEL, gECHO_MOD, gREV_MODEL, gREV_MOD,
-    gOUT_STEP, gOUT_LEDS, gOUT_PATTERN,
+    gMF_HP, gMF_LP, gMF_RESO,          // master filter (after the master FX)
+    gCHO_MODEL, gCHO_RATE, gCHO_DEPTH, gCHO_TIME, gCHO_FB, gCHO_WIDTH, gCHO_TONE, gCHO_LEV,   // chorus (send)
+    gGL_CHANCE, gGL_SIZE, gGL_LEN, gGL_PITCH, gGL_FADE, gGL_REV, gGL_MIX,              // glitch / beat repeat
+    gCHO_SEND,                         // + track: chorus send of each track (kTracks parameters)
+    gOUT_STEP = gCHO_SEND + kTracks, gOUT_LEDS, gOUT_PATTERN,
     kGlobalParams
 };
 
@@ -99,18 +111,24 @@ static constexpr int kGlobalBase = kTracks * kTrackParams;
 static constexpr int kTotalParams = kGlobalBase + kGlobalParams;
 
 // master parameters gECHO_TIME .. gREV_MOD (index g - gECHO_TIME)
-static constexpr int kMasterCount = gREV_MOD - gECHO_TIME + 1;
+static constexpr int kMasterCount = gGL_MIX - gECHO_TIME + 1;
 static const char* const kMasterNames[kMasterCount] = {
     "TIME", "FEEDBACK", "HIGH CUT", "LOW CUT", "WIDTH", "LEVEL",
     "DECAY", "DAMPING", "GATE", "LOW CUT", "PRE-DELAY", "LEVEL",
     "LOW", "HIGH", "THRESH", "RATIO", "ATTACK", "RELEASE", "DRIVE", "VOLUME",
-    "MODEL", "MOD", "MODEL", "MOD"
+    "MODEL", "MOD", "MODEL", "MOD",
+    "HIGH PASS", "LOW PASS", "RESONANCE",
+    "MODEL", "RATE", "DEPTH", "TIME", "FEEDBACK", "WIDTH", "TONE", "LEVEL",
+    "CHANCE", "SIZE", "LENGTH", "PITCH", "FADE", "REVERSE", "MIX"
 };
 static const uint8_t kMasterDefaults[kMasterCount] = {
     48, 50, 100, 10, 64, 64,
     60, 64, 0, 20, 10, 64,
     64, 64, 127, 40, 20, 50, 0, 100,
-    0, 30, 52, 30
+    0, 30, 52, 30,
+    0, 127, 0,
+    0, 30, 50, 40, 0, 100, 100, 64,
+    0, 70, 50, 64, 30, 0, 127
 };
 
 // ---- machines ----

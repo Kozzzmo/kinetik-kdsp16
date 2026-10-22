@@ -45,10 +45,10 @@ struct R {
 
 enum Page { pgSynth, pgFilter, pgFx, pgMix, pgLfo1, pgLfo2, pgTrack, kPages };
 static const char* const kPageNames[kPages] = {"SYNTH", "FILTER", "FX", "MIX", "LFO 1", "LFO 2", "TRACK"};
-enum MPage { mpEcho, mpReverb, mpMaster };
+enum MPage { mpEcho, mpReverb, mpMaster, mpFilter, mpChorus, mpGlitch, kMPages };
 enum Mode { mdTrig, mdAccent, mdSlide, mdRatch, mdCond, mdTime, kModes };
 
-enum DragKind { dkNone, dkTrackKnob, dkMasterKnob, dkTempo, dkSwing, dkAccent, dkKit, dkEuclid, dkMorph };
+enum DragKind { dkNone, dkTrackKnob, dkMasterKnob, dkTempo, dkSwing, dkAccent, dkKit, dkEuclid, dkMorph, dkChoSend, dkGlHold };
 enum Overlay { ovNone, ovPicker, ovPresets, ovHelp, ovSkins, ovSave, ovLicense, ovDest , ovUpdate};
 enum DragExtra { dkResize = 100 };
 
@@ -162,8 +162,10 @@ protected:
     float gp(int g) const { return values[kGlobalBase + g]; }
     int editPattern() const { return clampi((int)std::lround(gp(gPATTERN)), 0, kPatterns - 1); }
     int machineOf(int t) const { return clampi(bank->machine[t], 0, kMachines - 1); }
-    int64_t absStep() const { return (int64_t)std::lround(gp(gOUT_STEP)); } // -1 when stopped
-    int trackStepNow(int t) { const int64_t k = absStep(); return k < 0 ? -1 : pat().trackStep(t, k); }
+    int64_t fineStep() const { return (int64_t)std::lround(gp(gOUT_STEP)); }               // 1/24 steps, -1 when stopped
+    int64_t absStep() const { const int64_t f = fineStep(); return f < 0 ? -1 : f / kFineSteps; } // pattern step
+    int64_t trackK(int t) const { const int64_t f = fineStep(); return f < 0 ? -1 : (int64_t)std::floor((double)f * trackSpeedMult(bank->kit[t][kfSpeed]) / kFineSteps + 1e-9); }
+    int trackStepNow(int t) { const int64_t k = trackK(t); return k < 0 ? -1 : pat().trackStep(t, k); }
     int tlen(int t) { return pat().trackLen[t] ? pat().trackLen[t] : 16; }
     Pattern& pat() { return bank->patterns[editPattern()]; }
 
@@ -199,7 +201,7 @@ protected:
     }
     static bool undoable(const std::string& c)
     {
-        static const char* skip[] = {"aud ", "fill ", "sel ", "rec ", "non ", "noff ", "panic", "lic", "pv "};
+        static const char* skip[] = {"aud ", "fill ", "sel ", "rec ", "non ", "noff ", "panic", "lic", "pv ", "gh "};
         for (const char* k : skip) if (c.rfind(k, 0) == 0) return false;
         return true;
     }
@@ -239,6 +241,9 @@ protected:
     {
         if (mp == mpEcho) return k < 6 ? gECHO_TIME + k : (k == 6 ? gECHO_MODEL : gECHO_MOD);
         if (mp == mpReverb) return k < 6 ? gREV_SIZE + k : (k == 6 ? gREV_MODEL : gREV_MOD);
+        if (mp == mpFilter) return k < 3 ? gMF_HP + k : -1;
+        if (mp == mpChorus) return gCHO_MODEL + k;
+        if (mp == mpGlitch) return k < 7 ? gGL_CHANCE + k : -1;   // knob 8 = HOLD pad
         return gEQ_LOW + k;
     }
 
@@ -312,6 +317,23 @@ protected:
     {
         char b[32];
         const int iv = (int)std::lround(v);
+        auto pct = [&](float x) { std::snprintf(b, sizeof(b), "%d%%", (int)std::lround(x / 127.f * 100.f)); return std::string(b); };
+        auto hz = [&](float h) { if (h >= 1000.f) std::snprintf(b, sizeof(b), "%.1fk", h / 1000.f); else std::snprintf(b, sizeof(b), "%d", (int)std::lround(h)); return std::string(b); };
+        if (g == gMF_HP) return iv <= 0 ? std::string("OFF") : hz(cutoffHz(v));
+        if (g == gMF_LP) return iv >= 127 ? std::string("OFF") : hz(cutoffHz(v));
+        if (g == gMF_RESO || g == gCHO_DEPTH || g == gCHO_FB || g == gCHO_WIDTH || g == gGL_CHANCE || g == gGL_FADE || g == gGL_REV || g == gGL_MIX)
+            return (g == gGL_CHANCE && iv == 0) ? std::string("OFF") : pct(v);
+        if (g == gCHO_MODEL) return kChorusModelNames[chorusModelIndex(iv)];
+        if (g == gCHO_RATE) { std::snprintf(b, sizeof(b), "%.2fHz", expmap(v / 127.f, 0.05f, 8.f)); return b; }
+        if (g == gCHO_TIME) {
+            const bool fl = chorusModelIndex((int)gp(gCHO_MODEL)) == cmFlanger;
+            std::snprintf(b, sizeof(b), "%.1fms", fl ? expmap(v / 127.f, 0.3f, 6.f) : expmap(v / 127.f, 4.f, 30.f)); return b;
+        }
+        if (g == gCHO_TONE) return iv >= 127 ? std::string("OPEN") : hz(expmap(v / 127.f, 1200.f, 20000.f));
+        if (g == gCHO_LEV) { const float gn = fxReturnGain(v); if (gn < 0.001f) return "OFF"; std::snprintf(b, sizeof(b), "%+.1fdB", 20.f * std::log10(gn)); return b; }
+        if (g == gGL_SIZE) return kGlSizeNames[glSizeIndex(iv)];
+        if (g == gGL_LEN) return kGlLenNames[glLenIndex(iv)];
+        if (g == gGL_PITCH) { const int st = (int)glPitchSemis(v); if (st == 0) return "0 ST"; std::snprintf(b, sizeof(b), "%+d ST", st); return b; }
         if (g == gECHO_TIME) return kEchoNames[echoDivIndex(iv)];
         if (g == gECHO_MODEL) return kEchoModelNames[echoModelIndex(iv)];
         if (g == gREV_MODEL) return kReverbModelNames[reverbModelIndex(iv)];
@@ -338,7 +360,7 @@ protected:
     R lockClear() const { return {596.f, 156.f, 94.f, 24.f}; }
     R pageTab(int i) const { return {20.f + i * 97.4f, 304.f, 94.f, 28.f}; }
     R knob(int k) const { return {20.f + k * 85.f, 340.f, 85.f, 120.f}; }
-    R mTab(int i) const { return {720.f + i * 148.f, 146.f, 144.f, 28.f}; }
+    R mTab(int i) const { const float w = (448.f - (kMPages - 1) * 4.f) / kMPages; return {716.f + i * (w + 4.f), 146.f, w, 28.f}; }
     R mKnob(int k) const { return {720.f + (k % 4) * 110.f, 178.f + (k / 4) * 102.f, 110.f, 100.f}; }
     R patBtn(int i) const { return {720.f + (i % 8) * 55.f, 432.f + (i / 8) * 30.f, 51.f, 26.f}; }
     R patCopy() const { return {946.f, 400.f, 68.f, 24.f}; }
@@ -372,8 +394,8 @@ protected:
     R zoomBtn(int i) const { return {264.f + i * 109.f, 486.f, 101.f, 36.f}; }
     R gripR() const { return {W - 22.f, H - 22.f, 22.f, 22.f}; }
     R recBtn() const { return {20.f, 634.f, 96.f, 40.f}; }
-    R rndGroup() const { return {124.f, 628.f, 574.f, 52.f}; }
-    R rndBtn(int i) const { return {250.f + i * 111.f, 634.f, 105.f, 40.f}; }
+    R rndGroup() const { return {124.f, 628.f, 584.f, 52.f}; }
+    R rndBtn(int i) const { return {250.f + i * 91.f, 634.f, 87.f, 40.f}; }
     R undoBtn() const { return {712.f, 634.f, 86.f, 40.f}; }
     R presetBtn() const { return {1010.f, 624.f, 150.f, 34.f}; }
     R saveBtn() const { return {1010.f, 664.f, 150.f, 34.f}; }
@@ -583,8 +605,14 @@ protected:
         }
         drawSparkle(right + 10, 19, 9.f, star);
         label(right + 30, 21, "KDSP-16", 13.f, th->text, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
-        if (updater && updater->getState() == upd::Checker::stAvailable)
-            label(right + 30, 39, ("UPDATE " + updater->manifest().version + " AVAILABLE - CLICK").c_str(), 9.5f, th->logo == lgRiso ? th->text : th->accent, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
+        const int ust = updater ? (int)updater->getState() : -1;
+        if (ust == upd::Checker::stAvailable || ust == upd::Checker::stInstalling || ust == upd::Checker::stInstalled) {
+            const std::string v = updater->manifest().version;
+            const std::string t = ust == upd::Checker::stAvailable ? "UPDATE " + v + " AVAILABLE - CLICK"
+                                : ust == upd::Checker::stInstalling ? "INSTALLING UPDATE " + v + "..."
+                                : "UPDATED TO " + v + " - REOPEN TO USE IT";
+            label(right + 30, 39, t.c_str(), 9.5f, th->logo == lgRiso ? th->text : th->accent, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
+        }
         else if (licInfo.valid || !lic::kDemoModeEnabled) label(right + 30, 39, "DRUM SYNTH PROGRAM", 9.5f, th->dim, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
         else label(right + 30, 39, "DEMO - CLICK TO REGISTER", 9.5f, th->logo == lgRiso ? th->text : th->accent, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
     }
@@ -854,7 +882,7 @@ protected:
     {
         const R pl{g.x, g.y + 2, g.w - 150, g.h - 4};
         lcdGrid(pl, 3, 4);
-        const float cut = shownValue(tpCUTOFF), q = 0.5f + shownValue(tpRESO) / 127.f * 12.f;
+        const float cut = shownValue(tpCUTOFF), q = resoQ(shownValue(tpRESO), 0.5f, 12.5f);
         const int type = filterTypeIndex((int)shownValue(tpFTYPE));
         const float cutHz = cutoffHz(cut);
         const float envOct = (shownValue(tpFENV) - 64.f) / 64.f * 6.f;
@@ -1014,15 +1042,19 @@ protected:
         // sends
         const R c{g.x + 450, g.y + 4, 210, g.h - 24};
         frame(c, withAlpha(th->lcdDim, 0.35f), 2.f);
-        const float sd = shownValue(tpDEL) / 127.f, sr2 = shownValue(tpREV) / 127.f;
-        const R b1{c.x + 10, c.y + 18, c.w - 20, 14}, b2{c.x + 10, c.y + 50, c.w - 20, 14};
-        frame(b1, withAlpha(th->lcdDim, 0.5f), 1.f); frame(b2, withAlpha(th->lcdDim, 0.5f), 1.f);
-        box({b1.x + 2, b1.y + 2, (b1.w - 4) * sd, b1.h - 4}, ink(tpDEL), 1.f);
-        box({b2.x + 2, b2.y + 2, (b2.w - 4) * sr2, b2.h - 4}, ink(tpREV), 1.f);
-        std::snprintf(b, sizeof(b), "DELAY  -  %s", kEchoModelNames[echoModelIndex((int)gp(gECHO_MODEL))]);
-        label(b1.x, b1.y - 7, b, 9.f, th->lcdDim, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
-        std::snprintf(b, sizeof(b), "REVERB  -  %s", kReverbModelNames[reverbModelIndex((int)gp(gREV_MODEL))]);
-        label(b2.x, b2.y - 7, b, 9.f, th->lcdDim, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
+        const float sd = shownValue(tpDEL) / 127.f, sr2 = shownValue(tpREV) / 127.f, sc = gp(gCHO_SEND + selTrack) / 127.f;
+        const R bars[3] = {{c.x + 10, c.y + 14, c.w - 20, 10}, {c.x + 10, c.y + 40, c.w - 20, 10}, {c.x + 10, c.y + 66, c.w - 20, 10}};
+        const float sl[3] = {sd, sr2, sc};
+        const Color col[3] = {ink(tpDEL), ink(tpREV), th->lcdText};
+        char nm[3][40];
+        std::snprintf(nm[0], sizeof(nm[0]), "DELAY  -  %s", kEchoModelNames[echoModelIndex((int)gp(gECHO_MODEL))]);
+        std::snprintf(nm[1], sizeof(nm[1]), "REVERB  -  %s", kReverbModelNames[reverbModelIndex((int)gp(gREV_MODEL))]);
+        std::snprintf(nm[2], sizeof(nm[2]), "CHORUS  -  %s", kChorusModelNames[chorusModelIndex((int)gp(gCHO_MODEL))]);
+        for (int i = 0; i < 3; ++i) {
+            frame(bars[i], withAlpha(th->lcdDim, 0.5f), 1.f);
+            box({bars[i].x + 2, bars[i].y + 2, (bars[i].w - 4) * sl[i], bars[i].h - 4}, col[i], 1.f);
+            label(bars[i].x, bars[i].y - 6, nm[i], 9.f, th->lcdDim, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
+        }
         label(c.x, g.y + g.h - 8, "SENDS TO THE MASTER", 9.5f, th->lcdDim, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
     }
 
@@ -1227,6 +1259,12 @@ protected:
 
         for (int k = 0; k < 8; ++k) {
             const int pi = pageParam(page, k);
+            if (choSlot(k)) {
+                const float cv = choValue();
+                drawKnob(knob(k), cv / 127.f, "CHORUS", cv < 0.5f ? std::string("OFF") : std::to_string((int)std::lround(cv)), false,
+                         drag == dkChoSend && dragIndex == k, true);
+                continue;
+            }
             if (euclidSlot(k)) {
                 const int n = tlen(selTrack);
                 char eb[16];
@@ -1256,10 +1294,12 @@ protected:
     void drawMaster()
     {
         panelBox({710, 140, 460, 344});
-        static const char* tabs[3] = {"ECHO", "REVERB", "MASTER"};
-        for (int i = 0; i < 3; ++i) button(mTab(i), tabs[i], mpage == i, 11.5f);
+        static const char* tabs[kMPages] = {"ECHO", "REVERB", "MASTER", "FILTER", "CHORUS", "GLITCH"};
+        for (int i = 0; i < kMPages; ++i) button(mTab(i), tabs[i], mpage == i, 10.5f);
+        fxTabDots();
         for (int k = 0; k < 8; ++k) {
             const int g = masterParam(mpage, k);
+            if (mpage == mpGlitch && k == 7) { drawHoldPad(); continue; }
             if (g < 0) { drawKnob(mKnob(k), 0, "", "", false, false, false); continue; }
             const float v = gp(g);
             drawKnob(mKnob(k), v / 127.f, masterName(g), masterText(g, v), false,
@@ -1401,9 +1441,9 @@ protected:
         const Color gt = th->logo == lgRiso ? th->text : th->dim;
         label(134, 645, "RANDOMIZE", 10.f, gt, ALIGN_LEFT | ALIGN_MIDDLE);
         label(134, 663, "undo restores", 9.f, gt, ALIGN_LEFT | ALIGN_MIDDLE);
-        static const char* rn[4] = {"SOUND", "SEQUENCE", "PATTERN", "EVERYTHING"};
-        static const char* rs[4] = {"this track", "this track", "all tracks", "kit+fx+pattern"};
-        for (int i = 0; i < 4; ++i) {
+        static const char* rn[5] = {"SOUND", "ALL SOUNDS", "SEQUENCE", "PATTERN", "EVERYTHING"};
+        static const char* rs[5] = {"this track", "no steps", "this track", "all tracks", "kit+fx+steps"};
+        for (int i = 0; i < 5; ++i) {
             const R r = rndBtn(i);
             box(r, th->btnFill); frame(r, th->btnEdge);
             label(r.cx(), r.y + 14, rn[i], 10.5f, th->btnText);
@@ -1944,8 +1984,9 @@ protected:
     std::unique_ptr<upd::Checker> updater;
     int updLastState = -1;
     R updBox() const { return {290.f, 150.f, 600.f, 380.f}; }
-    R updAuto() const { return {320.f, 400.f, 250.f, 34.f}; }
-    R updLic() const { return {580.f, 400.f, 280.f, 34.f}; }
+    R updAuto() const { return {320.f, 400.f, 170.f, 34.f}; }
+    R updAutoInst() const { return {496.f, 400.f, 190.f, 34.f}; }
+    R updLic() const { return {692.f, 400.f, 168.f, 34.f}; }
     R updMain() const { return {320.f, 456.f, 250.f, 40.f}; }
     R updSkip() const { return {580.f, 456.f, 150.f, 40.f}; }
     R updClose() const { return {740.f, 456.f, 120.f, 40.f}; }
@@ -1964,10 +2005,18 @@ protected:
         case C::stAvailable:
             l1 = "Version " + m.version + " is available.";
             l2 = m.notes;
-            l3 = m.url.empty() ? "Opens the download page." : "Downloads the installer, checks its signature, then opens it.";
+            l3 = m.url.empty() ? "Opens the download page." : "Downloads the installer, checks its signature and installs it (one system prompt).";
             break;
         case C::stUpToDate: l1 = "You have the latest version."; break;
         case C::stDownloading: l1 = "Downloading and checking the installer..."; break;
+        case C::stInstalling:
+            l1 = "Installing version " + m.version + "...";
+            l2 = "Accept the system prompt (administrator password on macOS, Yes on Windows). Keep working: the music does not stop.";
+            break;
+        case C::stInstalled:
+            l1 = "Version " + m.version + " is installed.";
+            l2 = "This window still runs the old version: it switches the next time the plug-in loads (reopen the project or restart your music software).";
+            break;
         case C::stOpened:
             l1 = "The installer is open.";
             l2 = "Close your music software before you finish the installation,";
@@ -1993,9 +2042,11 @@ protected:
         if (!l3.empty()) label(320, bx.y + 196, l3.c_str(), 10.5f, th->dim, ALIGN_LEFT | ALIGN_MIDDLE);
         const bool autoOn = updater->autoCheck();
         button(updAuto(), autoOn ? "AUTO CHECK: ON" : "AUTO CHECK: OFF", autoOn, 10.5f);
+        const bool instOn = updater->autoInstall();
+        button(updAutoInst(), instOn ? "AUTO INSTALL: ON" : "AUTO INSTALL: OFF", instOn, 10.5f);
         button(updLic(), licInfo.valid ? "LICENCE: REGISTERED" : "ENTER A LICENCE", false, 10.5f);
         const bool avail = st == C::stAvailable;
-        const bool busy = st == C::stChecking || st == C::stDownloading;
+        const bool busy = st == C::stChecking || st == C::stDownloading || st == C::stInstalling;
         button(updMain(), busy ? "PLEASE WAIT..." : (avail ? (m.url.empty() ? "OPEN DOWNLOAD PAGE" : "DOWNLOAD & INSTALL") : "CHECK NOW"), avail, 11.f);
         if (avail) button(updSkip(), "SKIP THIS ONE", false, 10.5f);
         button(updClose(), "CLOSE", false, 11.f);
@@ -2006,11 +2057,13 @@ protected:
         const C::State st = updater->getState();
         if (updMain().in(x, y)) {
             if (st == C::stAvailable) updater->install();
-            else if (st != C::stChecking && st != C::stDownloading) updater->check(true);
+            else if (st != C::stChecking && st != C::stDownloading && st != C::stInstalling) updater->check(true);
         } else if (st == C::stAvailable && updSkip().in(x, y)) {
             updater->skipThisVersion();
         } else if (updAuto().in(x, y)) {
             updater->setAutoCheck(!updater->autoCheck());
+        } else if (updAutoInst().in(x, y)) {
+            updater->setAutoInstall(!updater->autoInstall());
         } else if (updLic().in(x, y)) {
             overlay = ovLicense; licMsg.clear();
         } else if (updClose().in(x, y) || !updBox().in(x, y)) {
@@ -2333,11 +2386,15 @@ protected:
     void randomize(int what)
     {
         RandGen r(++rndCounter * 2654435761u ^ lastClickTime);
-        static const char* names[4] = {"sound", "sequence", "pattern", "everything"};
+        static const char* names[5] = {"sound", "sequence", "pattern", "everything", "all sounds"};
         snapshot(names[what]);
         std::vector<float> nv(values, values + kTotalParams);
         if (what == 0) {
             randomizeSound(nv.data(), selTrack, machineOf(selTrack), r);
+            applyState(nv.data(), nullptr);
+        } else if (what == 4) {
+            // every track's sound (machines kept, OFF tracks left alone), the sequencer is not touched
+            for (int t = 0; t < kTracks; ++t) if (machineOf(t) != mOFF) randomizeSound(nv.data(), t, machineOf(t), r);
             applyState(nv.data(), nullptr);
         } else if (what == 1) {
             std::unique_ptr<Pattern> tmp(new Pattern(pat()));
@@ -2349,7 +2406,7 @@ protected:
             randomizePattern(nb->patterns[editPattern()], *nb, r);
             applyState(nv.data(), nb.get());
         }
-        if (what >= 2) clearSel();
+        if (what == 2 || what == 3) clearSel();
         presetName = what == 3 ? "(random)" : presetName;
         repaint();
     }
@@ -2621,6 +2678,7 @@ protected:
     {
         for (int k = 0; k < 8; ++k)
             if (knob(k).in(x, y)) {
+                if (choSlot(k)) return "CHORUS - how much of this track goes to the master chorus (CHORUS tab). Double-click: off.";
                 if (euclidSlot(k)) return k == 6 ? "EUCLID - spreads this many hits evenly over the track. Replaces the trigs of the track (undo restores)."
                                                  : "ROTATE - moves the Euclidean rhythm later or earlier.";
                 if (kitField(k) >= 0) return std::string(kKitNames[kitField(k)]) + " - " + kKitHelp[kitField(k)];
@@ -2637,6 +2695,20 @@ protected:
                 if (g == gREV_MODEL || g == gREV_MOD) return std::string("Reverb ") + kReverbModelNames[reverbModelIndex((int)gp(gREV_MODEL))] + ": " + kReverbModelInfo[reverbModelIndex((int)gp(gREV_MODEL))];
                 return "";
             }
+        if (mpage == mpGlitch && glHoldPad().in(x, y)) return "HOLD: repeats the current slice while pressed. Right-click: latch on / off.";
+        for (int k = 0; k < 8; ++k)
+            if (mKnob(k).in(x, y) && masterParam(mpage, k) >= 0) {
+                const int g = masterParam(mpage, k);
+                if (g >= gCHO_MODEL && g <= gCHO_LEV) return std::string("Chorus ") + kChorusModelNames[chorusModelIndex((int)gp(gCHO_MODEL))] + ": " + kChorusModelInfo[chorusModelIndex((int)gp(gCHO_MODEL))] + ". Each track sends to it with its CHORUS knob.";
+                if (g == gGL_CHANCE) return "CHANCE - how often per bar the glitch grabs a slice of the mix and repeats it (on the beats).";
+                if (g == gGL_SIZE) return "SIZE - length of the repeated slice.";
+                if (g == gGL_LEN) return "LENGTH - how long one glitch lasts.";
+                if (g == gGL_PITCH) return "PITCH - the repeats glide up or down by this many semitones over the glitch.";
+                if (g == gGL_FADE) return "FADE - each repeat gets quieter and darker.";
+                if (g == gGL_REV) return "REVERSE - chance that a repeat plays backwards.";
+                if (g == gGL_MIX) return "MIX - repeats over the music (100% = the music stops while it repeats).";
+                if (g >= gMF_HP && g <= gMF_RESO) return "Master filter on the main output: HIGH PASS removes lows, LOW PASS removes highs, RESONANCE peaks at the cutoff.";
+            }
         if (undoBtn().in(x, y)) return "Click: undo (Ctrl+Z). Right-click: redo (Ctrl+Shift+Z). Up to 40 steps back.";
         if (trkCopy().in(x, y)) return "Copy this track: its steps and its sound.";
         if (trkPaste().in(x, y)) return "Click: paste the copied steps. Right-click: paste the copied sound.";
@@ -2647,7 +2719,7 @@ protected:
         if (shiftR().in(x, y)) return "Move the steps of this track one step later.";
         if (fillBtn().in(x, y)) return "Hold the FILL condition on: steps set to FILL play.";
         if (recBtn().in(x, y)) return "REC: knob moves while playing are recorded as parameter locks.";
-        { static const char* rt[4] = {"New random sound for this track", "New random steps for this track", "New random pattern on every track", "Random kit, effects and pattern"}; for (int i = 0; i < 4; ++i) if (rndBtn(i).in(x, y)) return std::string(rt[i]) + " (undo restores).";  }
+        { static const char* rt[5] = {"New random sound for this track", "New random sounds on every track (machines and steps unchanged)", "New random steps for this track", "New random pattern on every track", "Random kit, effects and pattern"}; for (int i = 0; i < 5; ++i) if (rndBtn(i).in(x, y)) return std::string(rt[i]) + " (undo restores).";  }
         for (int t = 0; t < kTracks; ++t) {
             if (soloBtn(t).in(x, y)) return "Solo: only the soloed tracks play.";
             if (muteBtn(t).in(x, y)) return "Mute this track.";
@@ -2690,6 +2762,8 @@ protected:
             if (drag == dkTempo) editParameter(kGlobalBase + gTEMPO, false);
             if (drag == dkSwing || drag == dkAccent) sendPatternSettings();
             if (drag == (DragKind)dkResize) saveView();
+            if (drag == dkChoSend) editParameter(kGlobalBase + gCHO_SEND + choTrack(), false);
+            if (drag == dkGlHold && !glLatch) glHoldSet(false);
             if (drag == dkMorph) morphApply();
             if (drag != dkNone) { drag = dkNone; repaint(); }
             return true;
@@ -2752,7 +2826,7 @@ protected:
             }
         }
         if (recBtn().in(x, y)) { rec = !rec; repaint(); return true; }
-        for (int i = 0; i < 4; ++i) if (rndBtn(i).in(x, y)) { randomize(i); return true; }
+        for (int i = 0; i < 5; ++i) if (rndBtn(i).in(x, y)) { static const int what[5] = {0, 4, 1, 2, 3}; randomize(what[i]); return true; }
         if (undoBtn().in(x, y)) { if (right) redo(); else undo(); return true; }   // right-click = redo
         if (presetBtn().in(x, y)) { openPresets(); return true; }
         if (saveBtn().in(x, y)) { openSave(); return true; }
@@ -2767,8 +2841,20 @@ protected:
             repaint(); return true;
         }
         for (int i = 0; i < kPages; ++i) if (pageTab(i).in(x, y)) { page = i; repaint(); return true; }
-        for (int i = 0; i < 3; ++i) if (mTab(i).in(x, y)) { mpage = i; repaint(); return true; }
+        for (int i = 0; i < kMPages; ++i) if (mTab(i).in(x, y)) { mpage = i; repaint(); return true; }
 
+        for (int k = 0; k < 8; ++k)
+            if (choSlot(k) && knob(k).in(x, y)) {
+                const uint32_t idx = kGlobalBase + gCHO_SEND + choTrack();
+                if (dbl) { setParamGesture(idx, 0.f); repaint(); return true; }
+                drag = dkChoSend; dragIndex = k; dragY = y; dragStart = choValue();
+                editParameter(idx, true);
+                repaint(); return true;
+            }
+        if (mpage == mpGlitch && glHoldPad().in(x, y)) {
+            if (right) { glLatch = !glLatch; glHoldSet(glLatch); return true; }
+            glLatch = false; glHoldSet(true); drag = dkGlHold; return true;
+        }
         for (int k = 6; k < 8; ++k)
             if (euclidSlot(k) && knob(k).in(x, y)) {
                 if (dbl) { (k == 6 ? eucHits : eucRot)[selTrack] = 0; applyEuclid(selTrack); repaint(); return true; }
@@ -2926,6 +3012,7 @@ protected:
         const float v = dragStart + (dragY - y) * sens;
         switch (drag) {
         case dkTrackKnob: setKnob(dragIndex, v); break;
+        case dkChoSend: setParam(kGlobalBase + gCHO_SEND + choTrack(), clampf(v, 0.f, 127.f)); repaint(); break;
         case dkEuclid: {
             const int n = tlen(selTrack);
             int nv = (int)std::lround(dragStart + (dragY - y) * 0.08f);
@@ -2965,6 +3052,9 @@ protected:
         }
         if (d == 0.f || overlay != ovNone) return false;
         for (int k = 0; k < 8; ++k) {
+            if (knob(k).in(x, y) && choSlot(k)) {
+                setParamGesture(kGlobalBase + gCHO_SEND + choTrack(), clampf(choValue() + d, 0.f, 127.f)); repaint(); return true;
+            }
             if (knob(k).in(x, y) && euclidSlot(k)) {
                 const int n = tlen(selTrack);
                 int& cur = (k == 6 ? eucHits : eucRot)[selTrack];
@@ -3013,6 +3103,29 @@ private:
     std::vector<float> soundClip; int soundClipMachine = 0;
     // Euclidean rhythm on the TRACK page (knobs 7 and 8): hits spread evenly over the track length, then rotated
     int eucHits[kTracks] = {}, eucRot[kTracks] = {};
+
+    // ------------------------------------------------------------------ chorus send knob, glitch HOLD pad, tab dots
+    bool glHoldUi = false, glLatch = false;
+    R glHoldPad() const { const R k = mKnob(7); return {k.x + 14.f, k.y + 14.f, k.w - 28.f, k.h - 28.f}; }
+    void glHoldSet(bool on) { if (on == glHoldUi) return; glHoldUi = on; sendCmd(on ? "gh 1" : "gh 0"); repaint(); }
+    void fxTabDots()
+    {
+        bool cho = false;
+        for (int t = 0; t < kTracks; ++t) cho |= gp(gCHO_SEND + t) > 0.5f;
+        const bool on[kMPages] = {false, false, false, gp(gMF_HP) > 0.5f || gp(gMF_LP) < 126.5f, cho, gp(gGL_CHANCE) > 0.5f || glHoldUi};
+        for (int i = 0; i < kMPages; ++i)
+            if (on[i] && mpage != i) { const R t = mTab(i); beginPath(); circle(t.x + t.w - 8, t.cy(), 3.f); fillColor(th->accent); fill(); }
+    }
+    void drawHoldPad()
+    {
+        const R p = glHoldPad();
+        if (glHoldUi) box(p, th->selFill); else { box(p, th->btnFill); frame(p, th->btnEdge, -1.f, 1.5f); }
+        label(p.cx(), p.cy() - 6, "HOLD", 13.f, glHoldUi ? th->selText : th->btnText);
+        label(p.cx(), p.cy() + 13, glLatch ? "LATCHED" : "press", 9.f, glHoldUi ? th->selText : th->dim);
+    }
+    int choTrack() const { return selTrack; }
+    float choValue() const { return gp(gCHO_SEND + choTrack()); }
+    bool choSlot(int k) const { return page == pgMix && k == 5; }
     bool euclidSlot(int k) const { return page == pgTrack && (k == 6 || k == 7); }
     void applyEuclid(int t)
     {
@@ -3056,7 +3169,9 @@ private:
         std::vector<std::string> names; std::vector<midi::Note> notes;
         for (int t = 0; t < kTracks; ++t) {
             bool any = false;
-            for (int k = 0; k < len; ++k) {
+            const double mult = trackSpeedMult(bank->kit[t][kfSpeed]), sbt = sb / mult;   // the track's SPEED
+            const int steps = (int)std::floor(len * mult + 1e-9);
+            for (int k = 0; k < steps; ++k) {
                 const int s = P.trackStep(t, k);
                 if (!(P.flags[t][s] & sfTrig)) continue;
                 if (!any) {
@@ -3064,12 +3179,12 @@ private:
                     names.push_back(nb); any = true;
                 }
                 const int n = std::max<int>(1, P.ratch[t][s]);
-                const double base = k * sb + ((k & 1) ? (P.swing / 100.0 * 2.0 - 1.0) * sb : 0.0) + P.micro[t][s] / 24.0 * sb;
+                const double base = k * sbt + ((k & 1) ? (P.swing / 100.0 * 2.0 - 1.0) * sbt : 0.0) + P.micro[t][s] / 24.0 * sbt;
                 for (int j = 0; j < n; ++j) {
                     midi::Note m;
                     m.track = (int)names.size() - 1; m.channel = 9; m.note = 36 + t;
                     m.velocity = (P.flags[t][s] & sfAccent) ? 127 : 100;
-                    m.start = std::max(0.0, base + j * sb / n); m.length = sb / n * 0.5;
+                    m.start = std::max(0.0, base + j * sbt / n); m.length = sbt / n * 0.5;
                     notes.push_back(m);
                 }
             }

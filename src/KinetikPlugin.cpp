@@ -88,13 +88,25 @@ protected:
             p.ranges.min = 0; p.ranges.max = kPatterns - 1; p.ranges.def = 0; return;
         default: break;
         }
-        static const char* section[kMasterCount] = {"Echo","Echo","Echo","Echo","Echo","Echo","Reverb","Reverb","Reverb","Reverb",
+        if (g >= gCHO_SEND && g < gCHO_SEND + kTracks) {   // chorus send of each track
+            static char names[kTracks][32], symbols[kTracks][16];
+            const int t = g - gCHO_SEND;
+            std::snprintf(names[t], sizeof(names[t]), "T%02d Chorus Send", t + 1);
+            std::snprintf(symbols[t], sizeof(symbols[t]), "t%02d_cho", t + 1);
+            p.name = names[t]; p.symbol = symbols[t];
+            p.ranges.min = 0; p.ranges.max = 127; p.ranges.def = 0;
+            return;
+        }
+        static const char* section[] = {"Echo","Echo","Echo","Echo","Echo","Echo","Reverb","Reverb","Reverb","Reverb",
                                           "Reverb","Reverb","Master","Master","Comp","Comp","Comp","Comp","Master","Master",
-                                          "Echo","Echo","Reverb","Reverb"};
-        static const char* syms[kMasterCount] = {"echo_time","echo_fb","echo_lpf","echo_hpf","echo_width","echo_lev",
+                                          "Echo","Echo","Reverb","Reverb","Filter","Filter","Filter",
+                                          "Chorus","Chorus","Chorus","Chorus","Chorus","Chorus","Chorus","Chorus","Glitch","Glitch","Glitch","Glitch","Glitch","Glitch","Glitch"};
+        static const char* syms[] = {"echo_time","echo_fb","echo_lpf","echo_hpf","echo_width","echo_lev",
                                        "rev_decay","rev_damp","rev_gate","rev_hpf","rev_pre","rev_lev",
                                        "eq_low","eq_high","cmp_thr","cmp_ratio","cmp_atk","cmp_rel","drive","volume",
-                                       "echo_model","echo_mod","rev_model","rev_mod"};
+                                       "echo_model","echo_mod","rev_model","rev_mod","mfilter_hp","mfilter_lp","mfilter_reso",
+                                       "cho_model","cho_rate","cho_depth","cho_time","cho_fb","cho_width","cho_tone","cho_lev","gl_chance","gl_size","gl_len","gl_pitch","gl_fade","gl_rev","gl_mix"};
+        static_assert(sizeof(section) / sizeof(section[0]) == kMasterCount && sizeof(syms) / sizeof(syms[0]) == kMasterCount, "master tables");
         const int i = g - gECHO_TIME;
         if (i >= 0 && i < kMasterCount) {
             char name[48];
@@ -222,6 +234,8 @@ protected:
                     if (std::sscanf(line.c_str() + 3, "%u %f", &i, &v) == 2) uiEdit(i, v);
                 } else if (line == "lic") {                    // the UI installed a licence: check again
                     licensed.store(lic::findInstalled(kProductCode).valid);
+                } else if (line.rfind("gh ", 0) == 0) {                  // glitch HOLD button
+                    engine->setGlitchHold(std::atoi(line.c_str() + 3) != 0);
                 } else if (line.rfind("fill ", 0) == 0) {
                     fillFlag.store(std::atoi(line.c_str() + 5) != 0);
                 } else if (line.rfind("aud ", 0) == 0) {
