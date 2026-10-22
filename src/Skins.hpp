@@ -34,6 +34,7 @@ struct Theme {
     bool halftone;                                // dotted background texture
     bool glow;                                    // glowing numbers and logo
     bool dottedLeds;                              // dotted pattern on unlit steps / bars
+    bool flaps;                                   // split-flap read-outs (numbers on split tiles that flip)
 };
 
 static const Theme kThemes[] = {
@@ -51,7 +52,7 @@ static const Theme kThemes[] = {
      Color(120, 128, 160),
      Color(10, 12, 24, 0.66f),
      Color(236, 160, 70),
-     3.f, 1.2f, fnSerif, fnMono, fnMono, 0.8f, ksTicks, lgSerif, false, false, true},
+     3.f, 1.2f, fnSerif, fnMono, fnMono, 0.8f, ksTicks, lgSerif, false, false, true, false},
     // ---- RISO: risograph vermilion, salmon paper and black ink ----
     {"RISO",
      Color(214, 69, 43), Color(214, 69, 43), Color(120, 30, 18), Color(240, 178, 160),
@@ -66,7 +67,7 @@ static const Theme kThemes[] = {
      Color(170, 60, 40),
      Color(60, 14, 8, 0.6f),
      Color(24, 16, 14),
-     2.f, 2.f, fnBlack, fnMono, fnMono, 0.8f, ksArcThick, lgRiso, true, false, true},
+     2.f, 2.f, fnBlack, fnMono, fnMono, 0.8f, ksArcThick, lgRiso, true, false, true, false},
     // ---- NEON: night blue with glowing periwinkle (from the logo) ----
     {"NEON",
      Color(9, 11, 26), Color(14, 18, 40), Color(42, 50, 100), Color(8, 10, 24),
@@ -81,7 +82,7 @@ static const Theme kThemes[] = {
      Color(70, 80, 140),
      Color(2, 3, 10, 0.72f),
      Color(255, 140, 150),
-     6.f, 1.f, fnSerif, fnMono, fnMono, 0.7f, ksTicks, lgNeon, false, true, true},
+     6.f, 1.f, fnSerif, fnMono, fnMono, 0.7f, ksTicks, lgNeon, false, true, true, false},
     // ---- CLASSIC: the original graphite look ----
     {"CLASSIC",
      Color(22, 24, 28), Color(33, 36, 42), Color(60, 65, 74), Color(28, 30, 35),
@@ -96,23 +97,8 @@ static const Theme kThemes[] = {
      Color(80, 85, 94),
      Color(0, 0, 0, 0.6f),
      Color(180, 200, 255),
-     4.f, 1.f, fnSans, fnSans, fnSans, 0.f, ksArc, lgClassic, false, false, false},
-    // ---- PARTITION (prototype): a movement score, ink on cool paper, red and blue pencil ----
-    {"PARTITION",
-     Color(232, 235, 239), Color(246, 247, 249), Color(24, 26, 32), Color(226, 229, 234),
-     Color(20, 22, 28), Color(84, 90, 104), Color(140, 146, 158),
-     Color(20, 22, 28), Color(246, 247, 249),
-     Color(212, 58, 38),
-     Color(20, 22, 28), Color(246, 247, 249),
-     Color(246, 247, 249), Color(120, 126, 140), Color(20, 22, 28),
-     Color(255, 255, 255), Color(20, 22, 28), Color(120, 126, 138), Color(20, 22, 28), Color(246, 247, 249),
-     Color(246, 247, 249), Color(20, 22, 28), Color(38, 88, 212), Color(214, 218, 225), Color(20, 22, 28),
-     Color(252, 252, 253), Color(242, 244, 247), Color(232, 234, 238), Color(222, 225, 231), Color(20, 22, 28),
-     Color(140, 146, 158),
-     Color(20, 22, 28, 0.35f),
-     Color(38, 88, 212),
-     1.5f, 1.f, fnSerif, fnMono, fnMono, 0.6f, ksArc, lgSerif, false, false, false},
-    // ---- QUAI (prototype): departure board, split flaps, signal yellow ----
+     4.f, 1.f, fnSans, fnSans, fnSans, 0.f, ksArc, lgClassic, false, false, false, false},
+    // ---- QUAI: departure board, split-flap read-outs, signal yellow ----
     {"QUAI",
      Color(18, 19, 21), Color(30, 32, 35), Color(56, 59, 64), Color(14, 15, 17),
      Color(238, 233, 220), Color(150, 148, 140), Color(92, 92, 90),
@@ -121,12 +107,12 @@ static const Theme kThemes[] = {
      Color(255, 196, 0), Color(18, 19, 21),
      Color(36, 38, 42), Color(64, 67, 72), Color(238, 233, 220),
      Color(10, 11, 12), Color(238, 233, 220), Color(130, 128, 120), Color(255, 196, 0), Color(18, 19, 21),
-     Color(40, 42, 46), Color(70, 73, 78), Color(255, 196, 0), Color(52, 55, 60), Color(238, 233, 220),
+     Color(40, 42, 46), Color(70, 73, 78), Color(238, 233, 220), Color(52, 55, 60), Color(238, 233, 220),
      Color(40, 42, 46), Color(40, 42, 46), Color(26, 27, 30), Color(52, 55, 60), Color(238, 233, 220),
      Color(80, 82, 86),
      Color(0, 0, 0, 0.65f),
      Color(255, 196, 0),
-     3.f, 1.f, fnBlack, fnMono, fnMono, 0.5f, ksArcThick, lgClassic, false, false, false},
+     3.f, 1.f, fnBlack, fnMono, fnMono, 0.5f, ksArcThick, lgSerif, false, false, false, true},
 };
 static constexpr int kNumThemes = (int)(sizeof(kThemes) / sizeof(kThemes[0]));
 static constexpr int kDefaultSkin = 2; // NEON

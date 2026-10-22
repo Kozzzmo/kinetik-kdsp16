@@ -516,10 +516,44 @@ protected:
         box(r, th->panel, th->radius + 2.f);
         frame(r, th->panelEdge, th->radius + 2.f, th->panelEdgeWidth);
     }
-    // prototype skins with their own signature drawing
-    bool isPartition() const { return std::strcmp(th->name, "PARTITION") == 0; }
-    bool isQuai() const { return std::strcmp(th->name, "QUAI") == 0; }
-    void flapSplit(const R& r) { if (!isQuai()) return; beginPath(); rect(r.x + 1, r.cy() - 0.5f, r.w - 2, 1.2f); fillColor(th->bg); fill(); }
+    // split-flap skins: the hinge line across a read-out tile
+    void flapSplit(const R& r) { if (!th->flaps) return; beginPath(); rect(r.x + 1, r.cy() - 0.5f, r.w - 2, 1.f); fillColor(th->bg); fill(); }
+
+    // A read-out drawn as a split-flap tile: when its text changes, the upper flap falls and shows the new value,
+    // like a departure board. uiIdle keeps repainting while a flip is in progress.
+    struct Flap { std::string cur, prev; double t0 = -1.0; };
+    static constexpr double kFlipTime = 0.22;
+    bool flipping = false;
+    void flapValue(Flap& fl, const R& t, const char* s, float size, const Color& c)
+    {
+        const double now = nowSec();
+        if (fl.cur != s) { if (!fl.cur.empty()) { fl.prev = fl.cur; fl.t0 = now; } fl.cur = s; }
+        double p = fl.t0 < 0.0 ? 1.0 : (now - fl.t0) / kFlipTime;
+        if (p >= 1.0) { fl.t0 = -1.0; p = 1.0; }
+        box(t, th->inner, 2.f);
+        const float hy = t.cy();
+        const auto half = [&](const std::string& txt, bool top, const Color& under) {
+            save(); scissor(t.x, top ? t.y : hy, t.w, t.h * 0.5f);
+            if (under.alpha > 0.f) box(t, under, 2.f);
+            number(t.cx(), hy + 1, txt.c_str(), size, c);
+            restore();
+        };
+        if (p >= 1.0) number(t.cx(), hy + 1, fl.cur.c_str(), size, c);
+        else {
+            flipping = true;
+            const Color none(0, 0, 0, 0.f), leaf(Color(th->inner, th->text, 0.07f));
+            half(fl.cur, true, none);      // the new top is already revealed behind the falling flap
+            half(fl.prev, false, none);    // the old bottom until the flap covers it
+            const float k = std::cos((float)p * kPi);   // 1 (flap up) .. -1 (flap down)
+            save();
+            translate(0.f, hy); scale(1.f, std::max(0.02f, std::fabs(k))); translate(0.f, -hy);
+            if (k > 0.f) half(fl.prev, true, leaf);      // the old top folding down to the hinge
+            else half(fl.cur, false, leaf);              // the back of the flap: the new bottom
+            restore();
+        }
+        flapSplit(t);
+    }
+    Flap flPat, flTempo;   // only the large read-outs: the hinge would strike through small figures
     void button(const R& r, const char* s, bool on, float size = 11.5f)
     {
         if (on) box(r, th->selFill);
@@ -683,8 +717,8 @@ protected:
         label(pr.x + 10, pr.cy() + 1, "PAT", 10.f, th->lcdDim, ALIGN_LEFT | ALIGN_MIDDLE);
         if (running && pp != ep) std::snprintf(b, sizeof(b), "A%02d>A%02d", pp + 1, ep + 1);
         else std::snprintf(b, sizeof(b), "A%02d", ep + 1);
-        number(pr.x + pr.w - 10, pr.cy() + 1, b, running && pp != ep ? 16.f : 20.f, th->lcdText, ALIGN_RIGHT | ALIGN_MIDDLE);
-        flapSplit(pr);
+        if (th->flaps) flapValue(flPat, {pr.x + 40, pr.y + 5, pr.w - 46, pr.h - 10}, b, running && pp != ep ? 13.f : 18.f, th->lcdText);
+        else number(pr.x + pr.w - 10, pr.cy() + 1, b, running && pp != ep ? 16.f : 20.f, th->lcdText, ALIGN_RIGHT | ALIGN_MIDDLE);
 
         const bool play = gp(gPLAY) > 0.5f;
         {
@@ -697,8 +731,8 @@ protected:
         const R tb = tempoBox();
         box(tb, th->lcdBg); frame(tb, th->panelEdge, -1.f, th->panelEdgeWidth);
         std::snprintf(b, sizeof(b), "%.1f", gp(gTEMPO));
-        number(tb.x + 70, tb.cy() + 1, b, 20.f, th->lcdText, ALIGN_RIGHT | ALIGN_MIDDLE);
-        flapSplit(tb);
+        if (th->flaps) flapValue(flTempo, {tb.x + 6, tb.y + 5, 64, tb.h - 10}, b, 17.f, th->lcdText);
+        else number(tb.x + 70, tb.cy() + 1, b, 20.f, th->lcdText, ALIGN_RIGHT | ALIGN_MIDDLE);
         label(tb.x + 75, tb.cy() + 2, "BPM", 10.f, th->lcdDim, ALIGN_LEFT | ALIGN_MIDDLE);
         const R sk = skinBtn();
         box(sk, th->btnFill); frame(sk, th->btnEdge);
@@ -1356,7 +1390,8 @@ protected:
         }
         char b[32];
         button(lenMinus(), "-", false); button(lenPlus(), "+", false);
-        box(lenBox(), th->lcdBg); std::snprintf(b, sizeof(b), "L:%d", len); label(lenBox().cx(), lenBox().cy() + 1, b, 11.f, th->lcdText);
+        std::snprintf(b, sizeof(b), "L:%d", len);
+        box(lenBox(), th->lcdBg); label(lenBox().cx(), lenBox().cy() + 1, b, 11.f, th->lcdText);
 
         toolButton(trkCopy(), trackClip.empty() ? "COPY" : "COPIED");
         toolButton(trkPaste(), "PASTE"); toolButton(trkClear(), "CLEAR");
@@ -1378,22 +1413,12 @@ protected:
             else if (isSel(s)) frame(r, th->lock, -1.f, s == lockStep ? 3.f : 2.f);
             else frame(r, Color(th->btnEdge, bg, 0.5f));
             const R led{r.x + 8, r.y + 9, r.w - 16, 12};
-            if (isQuai()) {   // split-flap tile behind the step number
+            if (th->flaps) {   // split-flap tile behind the step number
                 const R t{r.x + 14, r.y + 31, r.w - 28, 30};
                 box(t, th->inner, 2.f);
                 beginPath(); rect(t.x, t.cy() - 0.5f, t.w, 1.2f); fillColor(th->bg); fill();
             }
-            if (isPartition() && (f & sfTrig) && inLen) {
-                // movement-score marks: the shape tells the kind of trig, colour only confirms it
-                if (f & sfAccent) {
-                    box(led, th->panel, 0.f); frame(led, th->lock, 0.f, 1.5f);
-                    save(); scissor(led.x, led.y, led.w, led.h);
-                    beginPath();
-                    for (float hx = led.x - led.h; hx < led.x + led.w; hx += 4.f) { moveTo(hx, led.y + led.h); lineTo(hx + led.h, led.y); }
-                    strokeColor(th->lock); strokeWidth(1.4f); stroke();
-                    restore();
-                } else box(led, th->text, 0.f);
-            } else if (f & sfTrig && inLen) {
+            if (f & sfTrig && inLen) {
                 const Color lc = (f & sfAccent) ? th->lock : th->accent;
                 if (th->glow) { beginPath(); rect(led.x - 4, led.y - 4, led.w + 8, led.h + 8); fillPaint(boxGradient(led.x, led.y, led.w, led.h, 2, 8, Color(lc, Color(0, 0, 0, 0.f), 0.5f), Color(0, 0, 0, 0.f))); fill(); }
                 box(led, lc, 1.5f);
@@ -1403,7 +1428,7 @@ protected:
             if (f & sfSlide) box({led.x, r.y + 25, led.w, 3}, th->lock, 1.f);
             char nb[8]; std::snprintf(nb, sizeof(nb), "%d", s + 1);
             number(r.cx(), r.y + 45, nb, 18.f, inLen ? th->stepText : th->faint);
-            if (isQuai()) flapSplit({r.x + 14, r.y + 31, r.w - 28, 30});
+            if (th->flaps) flapSplit({r.x + 14, r.y + 31, r.w - 28, 30});
             if (p.hasLocks(selTrack, s)) { beginPath(); circle(r.cx(), r.y + 62, 2.8f); fillColor(th->lock); fill(); }
             if (inLen && (f & sfTrig)) {
                 std::string ex;
@@ -2262,6 +2287,7 @@ protected:
         if (updater && (int)updater->getState() != updLastState) { updLastState = (int)updater->getState(); repaint(); }
         if (smpMsgTicks > 0 && --smpMsgTicks == 0) repaint();
         if (!patMsg.empty() && nowSec() > patMsgUntil) { patMsg.clear(); repaint(); }
+        if (flipping) { flipping = false; repaint(); }   // a split-flap read-out is turning
         // persist the window size a moment after the user stops resizing
         if (viewDirty && drag != (DragKind)dkResize && ++viewDirtyTicks > 30) saveView();
     }
