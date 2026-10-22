@@ -363,7 +363,8 @@ protected:
     R lockClrAll() const { return {998.f, 504.f, 66.f, 26.f}; }
     R shiftL() const { return {1068.f, 504.f, 26.f, 26.f}; }
     R shiftR() const { return {1096.f, 504.f, 26.f, 26.f}; }
-    R stepBtn(int i) const { return {20.f + i * 71.25f, 544.f, 66.f, 72.f}; }
+    // 16 steps in four beats of four: wider gap between beats so the bar reads at a glance (same span as before)
+    R stepBtn(int i) const { return {20.f + i * 69.f + (float)(i / 4) * 12.f, 544.f, 64.f, 72.f}; }
     R playBtn() const { return {840.f, 9.f, 84.f, 40.f}; }
     R tempoBox() const { return {932.f, 9.f, 110.f, 40.f}; }
     R skinBtn() const { return {1050.f, 9.f, 116.f, 40.f}; }
@@ -469,12 +470,40 @@ protected:
         useFont(f);
         const float sz = f == fnSerif || f == fnSerifItalic ? size * 1.25f : (f == fnBlack ? size * 0.95f : size);
         fontSize(sz); textAlign(align);
+        textLetterSpacing(f == fnSerif ? sz * 0.035f : 0.f);   // the condensed figures touch at small sizes
         if (th->glow) {
             fontBlur(sz * 0.18f); fillColor(Color(c, Color(0, 0, 0, 0.f), 0.35f)); text(x, y, s, nullptr);
             fontBlur(0.f);
         }
         fillColor(c); text(x, y, s, nullptr);
+        if (f == fnSerif) flagOnes(x, y, s, sz, c);
+        textLetterSpacing(0.f);
     }
+    // The upright serif's "1" is a plain stem, so "A11" read as "All" and "1x" as "lx": give every "1" a flag.
+    // Uses the font, size and alignment already set by number().
+    void flagOnes(float x, float y, const char* s, float sz, const Color& c)
+    {
+        if (std::strchr(s, '1') == nullptr) return;
+        GlyphPosition pos[32];
+        const int n = textGlyphPositions(x, y, s, nullptr, pos[0], 32);
+        float asc = 0.f, desc = 0.f, lh = 0.f;
+        textMetrics(&asc, &desc, &lh);
+        const float base = y + (asc + desc) * 0.5f;   // ALIGN_MIDDLE, the only vertical alignment number() is used with
+        const float top = base - sz * kDigitHeight;
+        const float stem = sz * 0.07f;
+        for (int i = 0; i < n; ++i) {
+            if (*pos[i].str != '1') continue;
+            const float sl = (pos[i].minx + pos[i].maxx) * 0.5f - stem * 0.5f;   // left edge of the stem
+            const float h = sz * kDigitHeight;
+            beginPath();
+            moveTo(sl + stem * 0.6f, top);
+            lineTo(sl - h * 0.25f, top + h * 0.27f);
+            lineTo(sl - h * 0.22f, top + h * 0.33f);
+            lineTo(sl, top + h * 0.20f);
+            closePath(); fillColor(c); fill();
+        }
+    }
+    static constexpr float kDigitHeight = 0.58f;   // Instrument Serif lining figures, in em
     void dotted(const R& r, const Color& c)
     {
         if (!dotImage.isValid()) { box(r, c, 1.f); return; }
@@ -492,6 +521,13 @@ protected:
         if (on) box(r, th->selFill);
         else { box(r, th->btnFill); frame(r, th->btnEdge, -1.f, 1.f); }
         label(r.cx(), r.cy() + 1, s, size, on ? th->selText : th->btnText, ALIGN_CENTER | ALIGN_MIDDLE, th->fontButton);
+    }
+    // one-shot utility action (copy, paste, clear...): a chip without outline, quieter than the modes, tabs and
+    // transport buttons. Recessed on a panel; raised (button fill) when it already sits on a recessed area.
+    void toolButton(const R& r, const char* s, float size = 10.5f, bool onInner = false)
+    {
+        box(r, onInner ? th->btnFill : th->inner);
+        label(r.cx(), r.cy() + 1, s, size, th->btnText, ALIGN_CENTER | ALIGN_MIDDLE, th->fontButton);
     }
     void drawKnob(const R& r, float v01, const char* name, const std::string& val, bool locked, bool highlight, bool enabled)
     {
@@ -648,7 +684,9 @@ protected:
         const bool play = gp(gPLAY) > 0.5f;
         {
             const R pb = playBtn();
-            if (play) box(pb, th->selFill); else { box(pb, th->btnFill); frame(pb, th->btnEdge); }
+            // transport outranks the read-outs beside it: tinted with the selection colour while stopped
+            if (play) box(pb, th->selFill);
+            else { box(pb, Color(th->btnFill, th->selFill, 0.14f)); frame(pb, Color(th->btnEdge, th->selFill, 0.6f), -1.f, 1.5f); }
             iconLabel(pb.cx(), pb.cy() + 1, play ? icStop : icPlay, play ? "STOP" : "PLAY", 12.f, play ? th->selText : th->btnText);
         }
         const R tb = tempoBox();
@@ -1269,10 +1307,10 @@ protected:
         box(in, th->inner, th->radius);
         if (!patMsg.empty()) label(728, 412, patMsg.c_str(), 10.5f, th->lock, ALIGN_LEFT | ALIGN_MIDDLE);
         else label(728, 412, "PATTERNS", 10.5f, th->logo == lgRiso ? th->text : th->dim, ALIGN_LEFT | ALIGN_MIDDLE);
-        button(patMidi(), "MIDI", false, 10.5f);
-        button(patCopy(), patClip >= 0 ? "COPIED" : "COPY", false, 10.5f);
-        button(patPaste(), "PASTE", false, 10.5f);
-        button(patClear(), "CLEAR", false, 10.5f);
+        toolButton(patMidi(), "MIDI", 10.5f, true);
+        toolButton(patCopy(), patClip >= 0 ? "COPIED" : "COPY", 10.5f, true);
+        toolButton(patPaste(), "PASTE", 10.5f, true);
+        toolButton(patClear(), "CLEAR", 10.5f, true);
         const int ep = editPattern(), pp = (int)std::lround(gp(gOUT_PATTERN));
         const bool running = gp(gOUT_STEP) >= 0.f;
         for (int i = 0; i < kPatterns; ++i) {
@@ -1314,11 +1352,11 @@ protected:
         button(lenMinus(), "-", false); button(lenPlus(), "+", false);
         box(lenBox(), th->lcdBg); std::snprintf(b, sizeof(b), "L:%d", len); label(lenBox().cx(), lenBox().cy() + 1, b, 11.f, th->lcdText);
 
-        button(trkCopy(), trackClip.empty() ? "COPY" : "COPIED", false, 10.5f);
-        button(trkPaste(), "PASTE", false, 10.5f); button(trkClear(), "CLEAR", false, 10.5f);
-        button(lockClrAll(), "-LOCKS", false, 10.5f);
+        toolButton(trkCopy(), trackClip.empty() ? "COPY" : "COPIED");
+        toolButton(trkPaste(), "PASTE"); toolButton(trkClear(), "CLEAR");
+        toolButton(lockClrAll(), "-LOCKS");
         for (const R& r : {shiftL(), shiftR()}) {   // move the track's steps one step earlier / later
-            button(r, "", false, 10.f);
+            toolButton(r, "");
             label(r.cx(), r.cy() + 1, r.x == shiftL().x ? "\xE2\x97\x80" : "\xE2\x96\xB6", 9.f, th->btnText, ALIGN_CENTER | ALIGN_MIDDLE, fnSans);
         }
 
@@ -1411,9 +1449,9 @@ protected:
         }
         const R u = undoBtn();
         const bool undoValid = !undoStack.empty(), redoValid = !redoStack.empty();
-        if (undoValid) { box(u, th->btnFill); frame(u, th->lock, -1.f, 1.5f); }
-        else { box(u, th->btnFill); frame(u, th->btnEdge); }
-        label(u.cx(), u.y + 14, "UNDO", 10.5f, undoValid ? th->lock : th->faint);
+        // neutral, not the lock / alert colour: undo is the safe way out, it should not look like a warning
+        box(u, th->btnFill); frame(u, undoValid ? th->btnEdge : Color(th->btnEdge, th->bg, 0.5f), -1.f, undoValid ? 1.5f : 1.f);
+        label(u.cx(), u.y + 14, "UNDO", 10.5f, undoValid ? th->btnText : th->faint);
         label(u.cx(), u.y + 30, undoValid ? undoStack.back().what.c_str() : (redoValid ? "right-click: redo" : ""), 9.f, th->dim);
         label(996, 640, "PRESET", 9.5f, th->dim, ALIGN_RIGHT | ALIGN_MIDDLE);
         if (th->fontNum == fnSerif) number(996, 666, presetName.c_str(), 19.f, th->text, ALIGN_RIGHT | ALIGN_MIDDLE, fnSerifItalic);
