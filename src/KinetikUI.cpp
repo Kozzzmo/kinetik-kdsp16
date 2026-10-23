@@ -51,7 +51,7 @@ enum MPage { mpEcho, mpReverb, mpChorus, mpChaos, mpFilter, mpMorph, mpMaster, k
 enum Mode { mdTrig, mdAccent, mdSlide, mdRatch, mdCond, mdTime, kModes };
 
 enum DragKind { dkNone, dkTrackKnob, dkMasterKnob, dkTempo, dkSwing, dkAccent, dkKit, dkEuclid, dkSend, dkGlHold, dkMFader, dkLane };
-enum Overlay { ovNone, ovPicker, ovPresets, ovHelp, ovSkins, ovSave, ovLicense, ovDest , ovUpdate, ovFx};
+enum Overlay { ovNone, ovPicker, ovPresets, ovHelp, ovSkins, ovSave, ovLicense, ovDest , ovUpdate, ovFx, ovLib};
 enum DragExtra { dkResize = 100 };
 
 class KinetikUI : public UI
@@ -373,6 +373,7 @@ protected:
     R machName() const { return {178.f, 156.f, 130.f, 26.f}; }
     R machNext() const { return {310.f, 156.f, 26.f, 26.f}; }
     R smpLoadBtn() const { return {596.f, 156.f, 94.f, 24.f}; }
+    R libBtn() const { return {496.f, 156.f, 94.f, 24.f}; }
     bool showSmpLoad() const { return page == pgSynth && lockStep < 0 && machineOf(selTrack) == mSAMPLE; }
     R lockClear() const { return {596.f, 156.f, 94.f, 24.f}; }
     R pageTab(int i) const { return {20.f + i * 97.4f, 304.f, 94.f, 28.f}; }
@@ -474,7 +475,7 @@ protected:
     static float textSize(float size, int font)
     {
         const float s = std::max(size, 9.5f);
-        return font == fnMono ? s * 1.13f : s * 1.08f;
+        return font == fnMono ? s * 1.13f * 1.08f : s * 1.08f;   // labels: SemiBold, 8 % larger (owner's choice D)
     }
     // mono / label text (letter-spaced in the retro skins)
     void label(float x, float y, const char* s, float size, const Color& c, int align = ALIGN_CENTER | ALIGN_MIDDLE, int font = -1)
@@ -518,7 +519,8 @@ protected:
         if (s == nullptr || *s == '\0') return;
         const int f = font < 0 ? th->fontNum : font;
         useFont(f);
-        const float sz = f == fnSerif || f == fnSerifItalic ? size * 1.25f : (f == fnBlack ? size * 0.95f : size);
+        float sz = f == fnSerif || f == fnSerifItalic ? size * 1.25f : (f == fnBlack ? size * 0.95f : size);
+        if (size <= 16.f) sz *= 1.15f;   // small values (knobs, steps) 15 % larger; big displays unchanged
         fontSize(sz); textAlign(align);
         if (th->glow) {
             fontBlur(sz * 0.18f); fillColor(Color(c, Color(0, 0, 0, 0.f), 0.35f)); text(x, y, s, nullptr);
@@ -658,6 +660,7 @@ protected:
         drawSequencer();
         if (overlay == ovPicker) drawPicker();
         if (overlay == ovPresets) drawPresets();
+        if (overlay == ovLib) drawLibrary();
         if (overlay == ovFx) drawFxMenu();
         if (overlay == ovHelp) drawHelp();
         if (overlay == ovSkins) drawSkins();
@@ -1267,7 +1270,9 @@ protected:
         } else if (showSmpLoad()) {
             box(smpLoadBtn(), th->lcdText, 3.f);
             label(smpLoadBtn().cx(), smpLoadBtn().cy() + 1, "LOAD", 10.5f, th->lcdBg);
-            label(586, 169, "or drop a file", 10.f, th->lcdDim, ALIGN_RIGHT | ALIGN_MIDDLE);
+            frame(libBtn(), th->lcdText, 3.f);
+            label(libBtn().cx(), libBtn().cy() + 1, "LIBRARY", 10.5f, th->lcdText);
+            label(486, 169, "or drop a file", 10.f, th->lcdDim, ALIGN_RIGHT | ALIGN_MIDDLE);
         } else if (rec) {
             iconLabel(688, 169, icRec, recording() ? "REC: turn knobs to record" : "REC armed: start playback", 10.f,
                       th->logo == lgRiso ? th->text : th->accent, th->fontLabel, ALIGN_RIGHT);
@@ -2228,6 +2233,131 @@ protected:
         overlay = ovNone;
         loadSampleFile(path, t);
     }
+    // ------------------------------------------------------------------ sample LIBRARY (built-in + user folders)
+    // FACTORY = the samples installed with the plug-in, one sub-folder per category; USER = Documents/Kinetik/KDSP-16
+    // Samples (the user's own, sub-folders too). Click = load on the selected track and play it, double-click = load + close.
+    static std::string factorySampleDir()
+    {
+       #ifdef _WIN32
+        std::string pf = fs::env("ProgramW6432"); if (pf.empty()) pf = fs::env("ProgramFiles");
+        return pf.empty() ? std::string() : pf + "\\Kinetik\\KinetikKDSP16\\Samples\\";
+       #elif defined(__APPLE__)
+        return "/Library/Application Support/Kinetik/KDSP-16/Samples/";
+       #else
+        const std::string h = fs::env("HOME");
+        return h.empty() ? std::string() : h + "/.local/share/Kinetik/KDSP-16/Samples/";
+       #endif
+    }
+    static std::string userSampleDir() { return fs::exportDir("KDSP-16 Samples"); }
+    static char pathSep() {
+       #ifdef _WIN32
+        return '\\';
+       #else
+        return '/';
+       #endif
+    }
+    struct LibCat { std::string name, dir; bool user; };
+    std::vector<LibCat> libCats;
+    std::vector<std::string> libFiles;          // file names in the selected category
+    int libCat = 0, libScroll = 0, libSel = -1;
+    std::string libMsg;
+    static constexpr int kLibRows = 11;
+    R libBox() const { return {80.f, 60.f, 1020.f, 610.f}; }
+    R libCatBtn(int i) const { return {100.f, 120.f + i * 34.f, 200.f, 30.f}; }
+    R libRow(int k) const { return {320.f + (k % 2) * 380.f, 120.f + (k / 2) * 43.f, 370.f, 38.f}; }
+    R libOpenBtn() const { return {720.f, 74.f, 180.f, 30.f}; }
+    R libCloseBtn() const { return {910.f, 74.f, 170.f, 30.f}; }
+    static bool audioExt(const std::string& f)
+    {
+        std::string e = f.substr(f.find_last_of('.') == std::string::npos ? f.size() : f.find_last_of('.'));
+        for (auto& c : e) c = (char)std::tolower((unsigned char)c);
+        return e == ".wav" || e == ".aif" || e == ".aiff";
+    }
+    static std::vector<std::string> audioFiles(const std::string& dir)
+    {
+        std::vector<std::string> v;
+        for (const auto& f : fs::list(dir, "")) if (audioExt(f) && f[0] != '.') v.push_back(f);
+        std::sort(v.begin(), v.end());
+        return v;
+    }
+    void scanLibrary()
+    {
+        libCats.clear();
+        auto addTree = [&](const std::string& root, bool user, const std::string& prefix) {
+            if (root.empty()) return;
+            std::vector<std::string> subs = fs::listDirs(root);
+            std::sort(subs.begin(), subs.end());
+            for (const auto& d : subs)
+                if (!audioFiles(root + d + pathSep()).empty()) libCats.push_back({prefix + d, root + d + pathSep(), user});
+            if (!audioFiles(root).empty()) libCats.push_back({prefix + (user ? "MY SAMPLES" : "OTHER"), root, user});
+        };
+        addTree(factorySampleDir(), false, "");
+        addTree(userSampleDir(), true, "USER: ");
+        libCat = clampi(libCat, 0, std::max(0, (int)libCats.size() - 1));
+        selectLibCat(libCat);
+    }
+    void selectLibCat(int i)
+    {
+        libCat = i; libScroll = 0; libSel = -1;
+        libFiles = i >= 0 && i < (int)libCats.size() ? audioFiles(libCats[(size_t)i].dir) : std::vector<std::string>();
+    }
+    void openLibrary() { overlay = ovLib; libMsg.clear(); scanLibrary(); repaint(); }
+    void drawLibrary()
+    {
+        const R bx = libBox();
+        overlayBox(bx);
+        number(100, 92, "Sample library", 22.f, th->text, ALIGN_LEFT | ALIGN_MIDDLE);
+        char b[96]; std::snprintf(b, sizeof(b), "LOADS ON TRACK %d", selTrack + 1);
+        label(420, 92, b, 10.5f, th->dim, ALIGN_LEFT | ALIGN_MIDDLE);
+        button(libOpenBtn(), "OPEN MY FOLDER", false, 10.5f);
+        button(libCloseBtn(), "CLOSE", false, 10.5f);
+        for (int i = 0; i < (int)libCats.size() && i < 15; ++i) {
+            std::string n = libCats[(size_t)i].name;
+            for (auto& c : n) c = (char)std::toupper((unsigned char)c);
+            button(libCatBtn(i), n.c_str(), i == libCat, 10.f);
+        }
+        if (libCats.empty()) {
+            label(bx.cx(), 300, "No samples yet.", 14.f, th->text);
+            label(bx.cx(), 326, "Put WAV / AIFF files (or folders of them) in Documents / Kinetik / KDSP-16 Samples.", 11.f, th->dim);
+            return;
+        }
+        for (int k = 0; k < kLibRows * 2; ++k) {
+            const int i = k + libScroll * 2;
+            if (i >= (int)libFiles.size()) break;
+            const R r = libRow(k);
+            const bool sel = i == libSel;
+            if (sel) box(r, th->selFill); else { box(r, th->btnFill); frame(r, th->btnEdge); }
+            std::string n = libFiles[(size_t)i];
+            const size_t dot = n.find_last_of('.'); if (dot != std::string::npos) n = n.substr(0, dot);
+            number(r.x + 12, r.cy() + 1, n.c_str(), 13.f, sel ? th->selText : th->text, ALIGN_LEFT | ALIGN_MIDDLE);
+        }
+        const int rows = ((int)libFiles.size() + 1) / 2;
+        if (rows > kLibRows) {
+            std::snprintf(b, sizeof(b), "%d SAMPLES - SCROLL FOR MORE", (int)libFiles.size());
+            label(1080, 92, b, 9.5f, th->dim, ALIGN_RIGHT | ALIGN_MIDDLE);
+        }
+        if (!libMsg.empty()) label(bx.cx(), 652, libMsg.c_str(), 10.5f, th->lock);
+    }
+    void libClick(float x, float y, bool dbl)
+    {
+        if (libCloseBtn().in(x, y) || !libBox().in(x, y)) { overlay = ovNone; repaint(); return; }
+        if (libOpenBtn().in(x, y)) { upd::openFolder(userSampleDir()); return; }
+        for (int i = 0; i < (int)libCats.size() && i < 15; ++i)
+            if (libCatBtn(i).in(x, y)) { selectLibCat(i); repaint(); return; }
+        for (int k = 0; k < kLibRows * 2; ++k) {
+            const int i = k + libScroll * 2;
+            if (i >= (int)libFiles.size() || !libRow(k).in(x, y)) continue;
+            libSel = i;
+            const std::string path = libCats[(size_t)libCat].dir + libFiles[(size_t)i];
+            if (loadSampleFile(path, selTrack)) {
+                char b[16]; std::snprintf(b, sizeof(b), "aud %d", selTrack); sendCmd(b);   // hear it
+                libMsg.clear();
+                if (dbl) overlay = ovNone;
+            } else libMsg = smpMsg;
+            repaint(); return;
+        }
+    }
+
     void openSampleBrowser()
     {
         FileBrowserOptions o;
@@ -2812,6 +2942,7 @@ protected:
             repaint(); return true;
         }
         if (overlay == ovPresets) { presetClick(x, y, dbl); return true; }
+        if (overlay == ovLib) { libClick(x, y, dbl); return true; }
         if (overlay == ovFx) { fxMenuClick(x, y); return true; }
         if (overlay == ovDest) return destClick(x, y);
         if (overlay == ovNone && (page == pgLfo1 || page == pgLfo2) && lfoDestBox().in(x, y)) { openDestMenu(page - pgLfo1); return true; }
@@ -2864,6 +2995,7 @@ protected:
         if (machNext().in(x, y)) { setMachine(selTrack, machineOf(selTrack) + 1); return true; }
         if (machName().in(x, y)) { overlay = ovPicker; repaint(); return true; }
         if (showSmpLoad() && smpLoadBtn().in(x, y)) { openSampleBrowser(); return true; }
+        if (showSmpLoad() && libBtn().in(x, y)) { openLibrary(); return true; }
         if (lockStep >= 0 && lockClear().in(x, y)) {
             std::string c; char b[48];
             for (int st : editTargets(lockStep)) { std::snprintf(b, sizeof(b), "cl %d %d %d\n", editPattern(), selTrack, st); c += b; }
@@ -3084,6 +3216,11 @@ protected:
     {
         const float x = ev.pos.getX() / sx, y = ev.pos.getY() / sx;
         const float d = ev.delta.getY() > 0 ? 1.f : (ev.delta.getY() < 0 ? -1.f : 0.f);
+        if (overlay == ovLib && d != 0.f) {
+            const int rows = ((int)libFiles.size() + 1) / 2;
+            libScroll = clampi(libScroll - (int)d, 0, std::max(0, rows - kLibRows));
+            repaint(); return true;
+        }
         if (overlay == ovPresets && d != 0.f) {
             const int rows = (presetCount() + 1) / 2;
             presetScroll = clampi(presetScroll - (int)d, 0, std::max(0, rows - 11));

@@ -11,6 +11,11 @@ cp -R "bin/$BIN.vst3" "$ROOT/VST3/"
 cp -R "bin/$BIN.component" "$ROOT/Components/"
 cp "bin/$BIN.clap" "$ROOT/CLAP/" 2>/dev/null || cp -R "bin/$BIN.clap" "$ROOT/CLAP/"
 cp EULA.txt "$WORK/res/EULA.txt"
+# optional built-in sample library: SAMPLES_DIR (a folder of category folders) installed to SAMPLES_DEST
+if [ -n "$SAMPLES_DIR" ] && [ -n "$SAMPLES_DEST" ] && [ -d "$SAMPLES_DIR" ]; then
+  mkdir -p "$WORK/root$SAMPLES_DEST"
+  (cd "$SAMPLES_DIR" && find . -type f \( -iname '*.wav' -o -iname '*.aif' -o -iname '*.aiff' \) -exec sh -c 'mkdir -p "$1/$(dirname "$2")" && cp "$2" "$1/$2"' _ "$WORK/root$SAMPLES_DEST" {} \;)
+fi
 # never let the installer "relocate" a bundle to another copy found on the disk, and always replace the installed
 # bundles (version check off: an update must overwrite even if the bundle version looks the same)
 pkgbuild --analyze --root "$WORK/root" "$WORK/components.plist"

@@ -77,6 +77,7 @@ jobs:
           MACOS_SIGN_INSTALLER: ${{ secrets.MACOS_SIGN_INSTALLER }}
         run: |
           SIGN=""; [ "$HAS_MAC_CERT" = "true" ] && SIGN="$MACOS_SIGN_INSTALLER"
+          export SAMPLES_DIR=samples SAMPLES_DEST="/Library/Application Support/Kinetik/KDSP-16/Samples"
           sh packaging/macos/make-pkg.sh KinetikKDSP16 "Kinetik KDSP-16" audio.kinetik.kdsp16 "$(cat VERSION)" Kinetik-KDSP16-macOS.pkg "$SIGN"
       - name: Notarize
         if: env.HAS_MAC_CERT == 'true'
@@ -92,7 +93,7 @@ jobs:
         run: |
           mkdir -p pkg
           cp -R bin/*.vst3 bin/*.component bin/*.clap pkg/ 2>/dev/null || true
-          cp README.md EULA.txt THIRD_PARTY_NOTICES.txt pkg/
+          cp README.md EULA.txt THIRD_PARTY_NOTICES.txt pkg/ && cp -R samples pkg/Samples
           cd pkg && zip -qry ../Kinetik-KDSP16-macOS.zip .
       - uses: actions/upload-artifact@v5
         with:
@@ -120,10 +121,10 @@ jobs:
       - name: Installer
         run: |
           SIGNDEF=""; [ -n "$WINDOWS_CERTIFICATE" ] && SIGNDEF="-DSIGN"
-          makensis -NOCD -V2 $SIGNDEF -DPRODUCT="Kinetik KDSP-16" -DBIN=KinetikKDSP16 -DVERSION=$(cat VERSION) -DOUTFILE=Kinetik-KDSP16-Windows-Setup.exe packaging/windows/installer.nsi
+          makensis -NOCD -V2 $SIGNDEF -DSAMPLES=samples -DPRODUCT="Kinetik KDSP-16" -DBIN=KinetikKDSP16 -DVERSION=$(cat VERSION) -DOUTFILE=Kinetik-KDSP16-Windows-Setup.exe packaging/windows/installer.nsi
       - name: Package
         run: |
-          mkdir -p pkg && cp -R bin/*.vst3 bin/*.clap pkg/ && cp README.md EULA.txt THIRD_PARTY_NOTICES.txt pkg/
+          mkdir -p pkg && cp -R bin/*.vst3 bin/*.clap pkg/ && cp README.md EULA.txt THIRD_PARTY_NOTICES.txt pkg/ && cp -R samples pkg/Samples
           cd pkg && zip -qry ../Kinetik-KDSP16-Windows.zip .
       - uses: actions/upload-artifact@v5
         with:
@@ -194,7 +195,7 @@ jobs:
           ./scripts/check-shared.sh                                                  # files shared with the sister plug-in
       - name: Package
         run: |
-          mkdir -p pkg && cp -R bin/*.vst3 bin/*.clap pkg/ && cp README.md EULA.txt THIRD_PARTY_NOTICES.txt pkg/
+          mkdir -p pkg && cp -R bin/*.vst3 bin/*.clap pkg/ && cp README.md EULA.txt THIRD_PARTY_NOTICES.txt pkg/ && cp -R samples pkg/Samples
           cd pkg && zip -qry ../Kinetik-KDSP16-Linux.zip .
       - uses: actions/upload-artifact@v5
         with:

@@ -242,3 +242,19 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
 - `Scene.hpp`: `sceneFromLine` accepts shorter lines (scenes saved before parameters were added; the missing values get
   `globalDefault`) and fewer machine bytes. Shared helpers `tpIndex` / `tpOf` / `choSendG` / `chaSendG` in `Params.hpp`
   (trivial here; KMSP-6 keeps tracks 7-8 after the globals).
+
+## Added in KDSP-16 0.14.1 — sample library
+
+- `samples/` in the repository (one sub-folder per category, `.wav` / `.aif` / `.aiff`, see `samples/README.md`) ships
+  with every installer: NSIS `-DSAMPLES=samples` -> `$INSTDIR\Samples` (= Program Files\Kinetik\KinetikKDSP16\Samples,
+  replaced on install, removed on uninstall); macOS `make-pkg.sh` with env `SAMPLES_DIR` / `SAMPLES_DEST` ->
+  /Library/Application Support/Kinetik/KDSP-16/Samples; zips carry a `Samples` folder (Linux: ~/.local/share/...).
+  **Only bundle files Kinetik may redistribute** (owner's own recordings or a licence allowing it; list sources in
+  THIRD_PARTY_NOTICES) — never copyrighted breaks or other makers' sample packs.
+- UI: overlay `ovLib` (`openLibrary`, `scanLibrary`, `drawLibrary`, `libClick`): categories = sub-folders of
+  `factorySampleDir()` then `userSampleDir()` (= `fs::exportDir("KDSP-16 Samples")`, prefixed "USER: "); files 2 x 11
+  rows, wheel scroll; click = `loadSampleFile` + `aud <t>` command (audition), double-click also closes. `fs::listDirs`
+  added to the shared `FsUtf8.hpp`.
+
+- Text (0.14.1 / KMSP 0.10.1, owner's choice after a test of 4 variants): `kFontMono` in `Fonts.hpp` = IBM Plex Mono
+  **SemiBold**; `textSize()` mono x1.13 x1.08; `number()` x1.15 when size <= 16 (values, steps), big displays unchanged.

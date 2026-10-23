@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.1
+
+- Larger, bolder text: labels and buttons in IBM Plex Mono SemiBold, 8 % larger; knob values and step numbers 15 % larger.
+- **Sample LIBRARY**: on a SAMPLE track, the LIBRARY button (next to LOAD) opens a browser of the samples installed with
+  KDSP-16 (one category per folder) and of your own folder Documents / Kinetik / KDSP-16 Samples (sub-folders too). Click a
+  sample to load it on the selected track and hear it; double-click loads and closes. OPEN MY FOLDER shows your folder.
+- The installers now carry the built-in sample library (filled in a later version).
+
 ## 0.14.0
 
 - **Kick ATTACK**: the KICK, FM KICK and PH KICK machines get a 9th knob on the SYNTH page. Left of centre the beat
