@@ -5,6 +5,7 @@
 #include "Presets.hpp"
 #include "Help.hpp"
 #include "Skins.hpp"
+#include "LogoMark.hpp"
 #include "Fonts.hpp"
 #include "License.hpp"
 #include "Updater.hpp"
@@ -75,6 +76,7 @@ public:
         fonts[fnSerifItalic] = createFontFromMemory("kn-serif-i", kFontSerifItalic, sizeof(kFontSerifItalic), false);
         fonts[fnMono] = createFontFromMemory("kn-mono", kFontMono, sizeof(kFontMono), false);
         fonts[fnBlack] = createFontFromMemory("kn-black", kFontBlack, sizeof(kFontBlack), false);
+        fonts[fnLogo] = createFontFromMemory("kn-logo", kFontUnbounded, sizeof(kFontUnbounded), false);
         int sk, zm;
         readDefaultView(sk, zm);
         setSkin(sk, false);
@@ -240,7 +242,7 @@ protected:
     int kitField(int k) const { return page == pgTrack && k < kKitFields ? k : -1; }
     int masterParam(int mp, int k) const
     {
-        if (mp == mpEcho) return k < 6 ? gECHO_TIME + k : (k == 6 ? gECHO_MODEL : gECHO_MOD);
+        if (mp == mpEcho) { static const int e[12] = {gECHO_TIME, gECHO_FB, gECHO_LPF, gECHO_HPF, gECHO_WIDTH, gECHO_LEV, gECHO_MODEL, gECHO_MOD, gECHO_RTIME, gECHO_DRIVE, gECHO_DUCK, -1}; return e[k % 12]; }   // 12 = FREEZE pad
         if (mp == mpReverb) return k < 6 ? gREV_SIZE + k : (k == 6 ? gREV_MODEL : gREV_MOD);
         if (mp == mpFilter) return k < 3 ? gMF_HP + k : -1;   // knob 4 = ON / OFF pad
         if (mp == mpMorph) return -1;                          // drawn by drawMorphTab
@@ -320,6 +322,9 @@ protected:
     {
         if (g == gECHO_MOD) return kEchoModLabel[echoModelIndex((int)gp(gECHO_MODEL))];
         if (g == gREV_MOD) return kReverbModLabel[reverbModelIndex((int)gp(gREV_MODEL))];
+        if (g == gECHO_RTIME) return "R TIME";
+        if (g == gECHO_DRIVE) return "DRIVE";
+        if (g == gECHO_DUCK) return "DUCK";
         return kMasterNames[g - gECHO_TIME];
     }
     std::string masterText(int g, float v) const
@@ -352,6 +357,8 @@ protected:
             std::snprintf(b, sizeof(b), "%+.1fdB", 20.f * std::log10(gn)); return b;
         }
         if (g == gREV_GATE && iv == 0) return "OFF";
+        if (g == gECHO_RTIME) { if (iv == 64) return "= L"; std::snprintf(b, sizeof(b), "x%.2f", 1.f + (v - 64.f) / 128.f); return b; }
+        if (g == gECHO_DRIVE || g == gECHO_DUCK) return iv == 0 ? std::string("OFF") : pct(v);
         if (g == gEQ_LOW || g == gEQ_HIGH) { std::snprintf(b, sizeof(b), "%+d", iv - 64); return b; }
         std::snprintf(b, sizeof(b), "%d", iv); return b;
     }
@@ -370,7 +377,13 @@ protected:
     R pageTab(int i) const { return {20.f + i * 97.4f, 304.f, 94.f, 28.f}; }
     R knob(int k) const { return {20.f + k * 85.f, 340.f, 85.f, 120.f}; }
     R mTab(int i) const { const float w = (448.f - (kMPages - 1) * 4.f) / kMPages; return {716.f + i * (w + 4.f), 146.f, w, 28.f}; }
-    R mKnob(int k) const { return {720.f + (k % 4) * 110.f, 178.f + (k / 4) * 102.f, 110.f, 100.f}; }
+    // master knobs: 4 per row (8), the ECHO tab has 6 per row (12)
+    int mSlots() const { return mpage == mpEcho ? 12 : 8; }
+    R mKnob(int k) const
+    {
+        if (mpage == mpEcho) return {718.f + (k % 6) * 74.f, 178.f + (k / 6) * 102.f, 74.f, 100.f};
+        return {720.f + (k % 4) * 110.f, 178.f + (k / 4) * 102.f, 110.f, 100.f};
+    }
     R patBtn(int i) const { return {720.f + (i % 8) * 55.f, 432.f + (i / 8) * 30.f, 51.f, 26.f}; }
     R patCopy() const { return {946.f, 400.f, 68.f, 24.f}; }
     R patPaste() const { return {1018.f, 400.f, 68.f, 24.f}; }
@@ -441,6 +454,7 @@ protected:
         case fnSerifItalic: fontFaceId(fonts[fnSerifItalic]); break;
         case fnMono: fontFaceId(fonts[fnMono]); break;
         case fnBlack: fontFaceId(fonts[fnBlack]); break;
+        case fnLogo: fontFaceId(fonts[fnLogo]); break;
         default: fontFace(NANOVG_DEJAVU_SANS_TTF); break;
         }
     }
@@ -598,34 +612,26 @@ protected:
         closePath(); fillColor(c); fill();
     }
 
-    // the same logo in every skin: "Kinetik" in serif italic + a four-point star, in the skin's colours
+    // the same logo in every skin: the Kinetik "Orbit" mark (LogoMark.hpp, colours per skin) + the product name
     void drawLogo()
     {
-        useFont(fnSerifItalic); fontSize(54.f); textAlign(ALIGN_LEFT | ALIGN_MIDDLE);
-        DGL_NAMESPACE::Rectangle<float> bnd; textBounds(18, 30, "Kinetik", nullptr, bnd);
-        const float right = bnd.getX() + bnd.getWidth();
-        const Color star = th->logo == lgRiso ? th->lock : (th->logo == lgClassic ? th->knobArc : th->accent);
-        if (th->glow) {
-            for (int k = 0; k < 2; ++k) { fontBlur(24.f); fillColor(Color(th->accent, Color(0, 0, 0, 0.f), 0.55f)); text(18, 30, "Kinetik", nullptr); }
-            fontBlur(6.f); fillColor(Color(th->accent, Color(0, 0, 0, 0.f), 0.7f)); text(18, 30, "Kinetik", nullptr);
-            fontBlur(0.f); fillColor(Color(230, 234, 255)); text(18, 30, "Kinetik", nullptr);
-            beginPath(); circle(right + 10, 19, 14);
-            fillPaint(radialGradient(right + 10, 19, 2, 14, Color(star, Color(0, 0, 0, 0.f), 0.55f), Color(0, 0, 0, 0.f))); fill();
-        } else {
-            fillColor(th->text); text(18, 30, "Kinetik", nullptr);
-        }
-        drawSparkle(right + 10, 19, 9.f, star);
-        label(right + 30, 21, "KDSP-16", 13.f, th->text, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
+        drawOrbitMark(*this, 14.f, 7.f, 46.f, th->logo);
+        const char* nm = "KDSP-16";
+        useFont(fnLogo); fontSize(30.f); textAlign(ALIGN_LEFT | ALIGN_MIDDLE);
+        const float nx = 68.f, ny = 23.f;
+        if (th->glow) { fontBlur(10.f); fillColor(Color(th->accent, Color(0, 0, 0, 0.f), 0.45f)); text(nx, ny, nm, nullptr); fontBlur(0.f); }
+        fillColor(th->glow ? Color(232, 236, 255) : th->text); text(nx, ny, nm, nullptr);
+        const float sy = 45.f;
         const int ust = updater ? (int)updater->getState() : -1;
         if (ust == upd::Checker::stAvailable || ust == upd::Checker::stInstalling || ust == upd::Checker::stInstalled) {
             const std::string v = updater->manifest().version;
             const std::string t = ust == upd::Checker::stAvailable ? "UPDATE " + v + " AVAILABLE - CLICK"
                                 : ust == upd::Checker::stInstalling ? "INSTALLING UPDATE " + v + "..."
                                 : "UPDATED TO " + v + " - REOPEN TO USE IT";
-            label(right + 30, 39, t.c_str(), 9.5f, th->logo == lgRiso ? th->text : th->accent, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
+            label(nx + 1, sy, t.c_str(), 9.5f, th->logo == lgRiso ? th->text : th->accent, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
         }
-        else if (licInfo.valid || !lic::kDemoModeEnabled) label(right + 30, 39, "DRUM SYNTH PROGRAM", 9.5f, th->dim, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
-        else label(right + 30, 39, "DEMO - CLICK TO REGISTER", 9.5f, th->logo == lgRiso ? th->text : th->accent, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
+        else if (licInfo.valid || !lic::kDemoModeEnabled) label(nx + 1, sy, "KINETIK  DRUM SYNTH PROGRAM", 9.5f, th->dim, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
+        else label(nx + 1, sy, "DEMO - CLICK TO REGISTER", 9.5f, th->logo == lgRiso ? th->text : th->accent, ALIGN_LEFT | ALIGN_MIDDLE, fnMono);
     }
 
     // ------------------------------------------------------------------ main draw
@@ -1314,10 +1320,11 @@ protected:
         fxTabDots();
         if (fxTabOf(mpage) >= 0) { const R t = mTab(mpage); label(t.x + t.w - 8, t.cy() + 1, "\xE2\x96\xBE", 9.f, th->selText, ALIGN_CENTER | ALIGN_MIDDLE, fnSans); }
         if (mpage == mpMorph) drawMorphTab();
-        else for (int k = 0; k < 8; ++k) {
+        else for (int k = 0; k < mSlots(); ++k) {
             const int g = masterParam(mpage, k);
             if (mpage == mpChaos && k == 7) { drawHoldPad(); continue; }
             if (mpage == mpFilter && k == 3) { drawOnPad(); continue; }
+            if (mpage == mpEcho && k == 11) { drawFreezePad(); continue; }
             if (g < 0) { drawKnob(mKnob(k), 0, "", "", false, false, false); continue; }
             const float v = gp(g);
             drawKnob(mKnob(k), v / 127.f, masterName(g), masterText(g, v), false,
@@ -2689,7 +2696,7 @@ protected:
                 std::string t = std::string(trackParamName(m, pi)) + " - " + (pi < 8 ? kMachineHelp[m].p[pi] : kFxHelp[pi - 8]);
                 return t + " Double-click: default. Shift-drag: fine.";
             }
-        for (int k = 0; k < 8; ++k)
+        for (int k = 0; k < mSlots(); ++k)
             if (mKnob(k).in(x, y) && masterParam(mpage, k) >= 0) {
                 const int g = masterParam(mpage, k);
                 if (g == gECHO_MODEL || g == gECHO_MOD) return std::string("Echo ") + kEchoModelNames[echoModelIndex((int)gp(gECHO_MODEL))] + ": " + kEchoModelInfo[echoModelIndex((int)gp(gECHO_MODEL))];
@@ -2702,12 +2709,16 @@ protected:
             for (int i = 0; i < 16; ++i) if (laneBar(i).in(x, y)) return "MORPH STEPS: the morph position on each step of this pattern (drag up / down). Right-click: back to the fader.";
         }
         if (mpage == mpFilter && mfOnPad().in(x, y)) return "Master filter on / off.";
+        if (mpage == mpEcho && freezePad().in(x, y)) return "FREEZE: the echo keeps repeating what it holds, nothing new goes in.";
         for (int i = 0; i < kMPages; ++i) if (mTab(i).in(x, y) && i == mpage && fxTabOf(i) >= 0) return "Click again: presets for this effect.";
         if (mpage == mpChaos && glHoldPad().in(x, y)) return "HOLD: CHAOS repeats the current slice while pressed. Right-click: latch on / off.";
-        for (int k = 0; k < 8; ++k)
+        for (int k = 0; k < mSlots(); ++k)
             if (mKnob(k).in(x, y) && masterParam(mpage, k) >= 0) {
                 const int g = masterParam(mpage, k);
                 if (g >= gCHO_MODEL && g <= gCHO_LEV) return std::string("Chorus ") + kChorusModelNames[chorusModelIndex((int)gp(gCHO_MODEL))] + ": " + kChorusModelInfo[chorusModelIndex((int)gp(gCHO_MODEL))] + ". Each track sends to it with its CHORUS knob.";
+                if (g == gECHO_RTIME) return "R TIME - the right side repeats shorter (left) or longer (right) than the left side. Centre = same time.";
+                if (g == gECHO_DRIVE) return "DRIVE - saturation inside the echo loop: the repeats get warmer and denser each time round.";
+                if (g == gECHO_DUCK) return "DUCK - the echo backs off while the sound sent to it plays and swells back in the gaps.";
                 if (g == gGL_CHANCE) return "CHANCE - how often per bar the glitch grabs a slice of the mix and repeats it (on the beats).";
                 if (g == gGL_SIZE) return "SIZE - length of the repeated slice.";
                 if (g == gGL_LEN) return "LENGTH - how long one glitch lasts.";
@@ -2867,6 +2878,7 @@ protected:
                 repaint(); return true;
             }
         if (mpage == mpFilter && mfOnPad().in(x, y)) { setParamGesture(kGlobalBase + gMF_ON, gp(gMF_ON) > 0.5f ? 0.f : 1.f); repaint(); return true; }
+        if (mpage == mpEcho && freezePad().in(x, y)) { setParamGesture(kGlobalBase + gECHO_FREEZE, gp(gECHO_FREEZE) > 0.5f ? 0.f : 1.f); repaint(); return true; }
         if (mpage == mpChaos && glHoldPad().in(x, y)) {
             if (right) { glLatch = !glLatch; glHoldSet(glLatch); return true; }
             glLatch = false; glHoldSet(true); drag = dkGlHold; return true;
@@ -2899,7 +2911,7 @@ protected:
             else if (pat().locks[selTrack][lockStep][pi] == kNoLock) setKnob(k, dragStart);
             repaint(); return true;
         }
-        for (int k = 0; k < 8; ++k) {
+        for (int k = 0; k < mSlots(); ++k) {
             const int g = masterParam(mpage, k);
             if (!mKnob(k).in(x, y) || g < 0) continue;
             if (dbl) { setMaster(k, kMasterDefaults[g - gECHO_TIME], true); return true; }
@@ -3068,6 +3080,8 @@ protected:
             repaint(); return true;
         }
         if (d == 0.f || overlay != ovNone) return false;
+        for (int k = 8; k < mSlots(); ++k)   // ECHO tab knobs 9-12
+            if (mKnob(k).in(x, y) && masterParam(mpage, k) >= 0) { setMaster(k, gp(masterParam(mpage, k)) + d, true); return true; }
         for (int k = 0; k < 8; ++k) {
             if (knob(k).in(x, y) && sendG(k) >= 0) {
                 setParamGesture(kGlobalBase + sendG(k) + selTrack, clampf(sendValue(k) + d, 0.f, 127.f)); repaint(); return true;
@@ -3125,6 +3139,15 @@ private:
     bool glHoldUi = false, glLatch = false;
     R glHoldPad() const { const R k = mKnob(7); return {k.x + 14.f, k.y + 14.f, k.w - 28.f, k.h - 28.f}; }
     R mfOnPad() const { const R k = mKnob(3); return {k.x + 14.f, k.y + 14.f, k.w - 28.f, k.h - 28.f}; }
+    R freezePad() const { const R k = mKnob(11); return {k.x + 6.f, k.y + 14.f, k.w - 12.f, k.h - 28.f}; }
+    void drawFreezePad()
+    {
+        const R p = freezePad();
+        const bool on = gp(gECHO_FREEZE) > 0.5f;
+        if (on) box(p, th->selFill); else { box(p, th->btnFill); frame(p, th->btnEdge, -1.f, 1.5f); }
+        label(p.cx(), p.cy() - 6, "FREEZE", 11.f, on ? th->selText : th->btnText);
+        label(p.cx(), p.cy() + 13, on ? "HOLDING" : "off", 9.f, on ? th->selText : th->dim);
+    }
     void glHoldSet(bool on) { if (on == glHoldUi) return; glHoldUi = on; sendCmd(on ? "gh 1" : "gh 0"); repaint(); }
     void fxTabDots()
     {
@@ -3267,6 +3290,8 @@ private:
             if (fxItem(i).in(x, y)) {
                 snapshot(all[v[i]].name);
                 const bool wasRestoring = restoring; restoring = true;
+                if (all[v[i]].tab == fxEcho)   // echo extras the preset does not set go back to their defaults
+                    for (int g : {(int)gECHO_RTIME, (int)gECHO_DRIVE, (int)gECHO_DUCK, (int)gECHO_FREEZE}) setParamGesture(kGlobalBase + g, globalDefault(g));
                 for (const FxSet& fs : all[v[i]].set) setParamGesture(kGlobalBase + fs.g, (float)fs.v);
                 restoring = wasRestoring;
                 break;
