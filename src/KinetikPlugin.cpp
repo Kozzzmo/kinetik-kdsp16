@@ -102,7 +102,9 @@ protected:
             p.hints |= kParameterIsBoolean | kParameterIsInteger; return;
         }
         if (g == gMORPH) {
-            p.name = "Scene Morph"; p.symbol = "morph"; p.ranges.min = 0; p.ranges.max = 127; p.ranges.def = 0; return;
+            // the MORPH feature was removed (0.15 / 0.11); the parameter stays so the indices after it do not move
+            p.name = "Unused"; p.symbol = "morph"; p.ranges.min = 0; p.ranges.max = 127; p.ranges.def = 0;
+            p.hints = kParameterIsHidden; return;
         }
         if (g >= gKATK && g < gKATK + kTracks) {   // kick ATTACK of each track (used by the kick machines)
             static char names[kTracks][32], symbols[kTracks][16];

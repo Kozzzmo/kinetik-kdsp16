@@ -72,22 +72,8 @@ struct PB { // preset builder
     void ratch(int pat, int t, int step, int n) { b.patterns[pat].ratch[t][step] = (uint8_t)n; }
     void cond(int pat, int t, int step, int c) { b.patterns[pat].cond[t][step] = (uint8_t)c; }
     void micro(int pat, int t, int step, int m) { b.patterns[pat].micro[t][step] = (int8_t)m; }
-    // morph scene a = the sound built so far, with some parameters changed ({index, value}; index = tpi(t, p) / gpi(g))
-    void scene(int a, std::initializer_list<std::pair<int, int>> changes)
-    {
-        b.scenes.set[a] = 1;
-        for (int t = 0; t < kTracks; ++t) b.scenes.mach[a][t] = b.machine[t];
-        for (int i = 0; i < kSceneValues; ++i) b.scenes.val[a][i] = (uint8_t)clampi((int)std::lround(v[i]), 0, 127);
-        for (const auto& c : changes) if (c.first >= 0 && c.first < kSceneValues) b.scenes.val[a][c.first] = (uint8_t)clampi(c.second, 0, 127);
-    }
     static int tpi(int t, int p) { return t * kTrackParams + p; }
     static int gpi(int g) { return kGlobalBase + g; }
-    // MORPH lane of a pattern: one value per step (-1 = follow the fader)
-    void lane(int pat, std::initializer_list<int> vals)
-    {
-        int st = 0;
-        for (int x : vals) { if (st >= kSteps) break; b.patterns[pat].morph[st++] = x < 0 ? kNoLock : (uint8_t)clampi(x, 0, 127); }
-    }
     void speed(int t, int sp) { b.kit[t][kfSpeed] = (uint8_t)sp; }   // index into kTrackSpeedMult
     void settings(int pat, int len, int swing, int scale = 0, int accent = 64)
     {
@@ -716,8 +702,8 @@ static void presetAmbient(PB& b)
 }
 
 
-// ---- 0.12: presets that show the scenes, CHAOS, chorus and per-track SPEED (voiced with the exponential RESONANCE)
-static void presetMorphTechno(PB& b)
+// ---- 0.12: presets that show CHAOS, chorus and per-track SPEED (voiced with the exponential RESONANCE)
+static void presetMalletTechno(PB& b)
 {
     b.kit(0, mKICK, {50, 70, 40, 30, 55, 5, 10, 40}); b.fx(0, tpDIST, 15);
     b.kit(1, mCLAP, {64, 50, 45, 50, 25, 85, 20, 10}); b.fx(1, tpREV, 30);
@@ -735,11 +721,11 @@ static void presetMorphTechno(PB& b)
     b.melody(0, 4, 60, kMlSemi, {0, 3, 7, 10, 7, 3});
     b.row(0, 5, "xxxxxxxxxxxxxxxx");
     b.settings(0, 16, 52);
-    b.lane(0, {0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 127});   // A -> B over the bar
     b.g(gTEMPO, 126);
-    b.scene(0, {{PB::tpi(4, tpCUTOFF), 55}, {PB::tpi(5, tpVOL), 40}, {PB::gpi(gREV_LEV), 30}, {PB::gpi(gECHO_LEV), 30}});
-    b.scene(1, {{PB::tpi(0, tpDIST), 60}, {PB::tpi(4, tpCUTOFF), 120}, {PB::tpi(4, tpRESO), 70}, {PB::tpi(5, tpVOL), 105},
-                {PB::tpi(3, 1), 90}, {PB::gpi(gREV_LEV), 90}, {PB::gpi(gECHO_LEV), 95}, {PB::gpi(gECHO_FB), 85}});
+    // a slow LFO opens and closes the mallets
+    b.fx(4, tpCUTOFF, 80); b.fx(4, tpRESO, 50); b.fx(0, tpDIST, 30); b.fx(5, tpVOL, 75);
+    b.fx(4, tpLFOS, 18); b.fx(4, tpLFOD, 90); b.fx(4, tpLFODST, lfoDestValue(tpCUTOFF));
+    b.g(gREV_LEV, 60); b.g(gECHO_LEV, 60);
 }
 static void presetChaosBreaks(PB& b)
 {
@@ -806,7 +792,7 @@ static void presetChorusDub(PB& b)
     b.settings(0, 16, 54);
     b.g(gTEMPO, 118);
 }
-static void presetLofiMorph(PB& b)
+static void presetLofiTape(PB& b)
 {
     b.kit(0, mKICK, {50, 55, 30, 30, 50, 10, 20, 40}); b.fx(0, tpSRR, 30);
     b.kit(1, mSNARE, {60, 35, 30, 20, 80, 50, 40, 40}); b.fx(1, tpSRR, 40);
@@ -814,8 +800,8 @@ static void presetLofiMorph(PB& b)
     b.kit(3, mPH_STRING, {50, 50, 40, 40, 50, 40, 30, 20}); b.fx(3, tpREV, 40);
     b.kit(4, mSHAKER, {20, 10, 30, 70, 100, 60, 80, 0}); b.fx(4, tpVOL, 60);
     b.g(gDRIVE, 25); b.g(gEQ_HIGH, 52);
-    // a slow LFO on the shaker track sweeps the MORPH: clean -> worn tape and back
-    b.fx(4, tpLFOS, 10); b.fx(4, tpLFOD, 127); b.fx(4, tpLFOSH, 25); b.fx(4, tpLFODST, lfoDestValue(kDestMorph));
+    // worn tape: crushed hits, drive and a darker top
+    b.fx(0, tpSRR, 30); b.fx(1, tpSRR, 40); b.fx(2, tpSRR, 35);
     b.row(0, 0, "x......x..x.....");
     b.row(0, 1, "....x.......x...");
     b.row(0, 2, "x.xx.x.xx.x.x.xx");
@@ -824,9 +810,7 @@ static void presetLofiMorph(PB& b)
     b.row(0, 4, "..x...x...x...x.");
     b.settings(0, 16, 62);
     b.g(gTEMPO, 86);
-    b.scene(0, {{PB::tpi(0, tpSRR), 0}, {PB::tpi(1, tpSRR), 0}, {PB::tpi(2, tpSRR), 0}, {PB::gpi(gDRIVE), 5}, {PB::gpi(gEQ_HIGH), 64}});
-    b.scene(1, {{PB::tpi(0, tpSRR), 60}, {PB::tpi(1, tpSRR), 75}, {PB::tpi(2, tpSRR), 70}, {PB::gpi(gDRIVE), 50}, {PB::gpi(gEQ_HIGH), 40},
-                {PB::tpi(3, tpCUTOFF), 60}, {PB::gpi(gMF_LP), 80}, {PB::gpi(gMF_ON), 1}});
+    b.g(gDRIVE, 30); b.g(gEQ_HIGH, 50); b.g(gMF_LP, 100);
 }
 static void presetGlitchGarage(PB& b)
 {
@@ -872,11 +856,11 @@ static const PresetDef kPresets[] = {
     {"Jungle",             "168 BPM chopped break feel, sub bass, dubby metal stabs",        presetJungle},
     {"Polyrhythm Lab",     "Every track has its own length (5 to 16 steps): ever-changing", presetPolyLab},
     {"Ambient Bells",      "Slow, long track lengths, bells, plucks, washed-out echo",       presetAmbient},
-    {"Morph Techno",       "Scenes A/B: the MORPH steps open the mallets, drive and echo bar by bar", presetMorphTechno, true},
+    {"Mallet Techno",      "Techno with mallets that a slow LFO opens and closes",            presetMalletTechno, true},
     {"Chaos Breaks",       "172 BPM break; CHAOS repeats only the snares and hats",           presetChaosBreaks, true},
     {"Speed Lab",          "Hats 2x, shaker 3/2x, cowbell 3/4x, toms 1/2x; ensemble chorus", presetPolySpeed, true},
     {"Chorus Dub",         "Ensemble chorus on rims and bells, dub tape echo, hall",          presetChorusDub, true},
-    {"Lo-Fi Morph",        "An LFO on MORPH wears the beat from clean to old tape and back",  presetLofiMorph, true},
+    {"Lo-Fi Tape",         "Worn tape drums: crushed hits, drive and a dark top",             presetLofiTape, true},
     {"Glitch Garage",      "Swung 2-step; CHAOS reverses and stutters the rims and claps",    presetGlitchGarage, true},
 };
 static constexpr int kNumPresets = (int)(sizeof(kPresets) / sizeof(kPresets[0]));
