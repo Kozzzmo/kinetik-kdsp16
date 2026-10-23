@@ -1,6 +1,7 @@
 // Kinetik KDSP-16 — pattern bank, serialization and edit commands (shared DSP + UI)
 #pragma once
 #include "Params.hpp"
+#include "Scene.hpp"
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -23,6 +24,7 @@ struct Pattern {
     uint8_t cond[kTracks][kSteps];   // index into kConds (0 = always)
     int8_t  micro[kTracks][kSteps];  // -11..+11 in 1/24 of a step
     uint8_t ratch[kTracks][kSteps];  // number of hits in the step (0/1 = single)
+    uint8_t morph[kSteps];           // MORPH lane: scene morph 0..127 on this step (kNoLock = the fader)
 
     Pattern() { clear(); }
     void clear()
@@ -32,6 +34,7 @@ struct Pattern {
         std::memset(flags, 0, sizeof(flags));
         std::memset(locks, kNoLock, sizeof(locks));
         std::memset(cond, 0, sizeof(cond)); std::memset(micro, 0, sizeof(micro)); std::memset(ratch, 0, sizeof(ratch));
+        std::memset(morph, kNoLock, sizeof(morph));
     }
     // move every step of track t one step later (dir > 0) or earlier, wrapping inside the track length
     void rotateTrack(int t, int dir)
@@ -79,6 +82,7 @@ struct Bank {
     uint8_t machine[kTracks];
     uint8_t mute[kTracks];
     uint8_t solo[kTracks];   // any solo on: only the solo tracks play
+    Scenes scenes;           // morph scenes A / B (Scene.hpp)
     uint8_t kit[kTracks][kKitFields]; // choke group, output bus, MIDI channel, FM quantize, osc shape
 
     Bank() { resetKit(); }
@@ -193,10 +197,13 @@ inline std::string serializeBank(const Bank& b)
         for (int f = 0; f < kKitFields; ++f)
             if (b.kit[t][f]) { std::snprintf(buf, sizeof(buf), "K %d %d %d\n", t, f, b.kit[t][f]); s += buf; }
     }
+    for (int a = 0; a < 2; ++a) if (b.scenes.set[a]) s += sceneLine(b.scenes, a) + "\n";
     for (int pi = 0; pi < kPatterns; ++pi) {
         const Pattern& p = b.patterns[pi];
         std::snprintf(buf, sizeof(buf), "P %d %d %d %d %d\n", pi, p.length, p.scale, p.swing, p.accent);
         s += buf;
+        for (int st = 0; st < kSteps; ++st)
+            if (p.morph[st] != kNoLock) { std::snprintf(buf, sizeof(buf), "z %d %d %d\n", pi, st, p.morph[st]); s += buf; }
         for (int t = 0; t < kTracks; ++t)
             if (p.trackLen[t] != 16) { std::snprintf(buf, sizeof(buf), "T %d %d %d\n", pi, t, p.trackLen[t]); s += buf; }
         for (int t = 0; t < kTracks; ++t)
@@ -241,6 +248,19 @@ inline int applyCommand(Bank& b, const char* line)
         p.scale = (uint8_t)clampi(d, 0, 6);
         p.swing = (uint8_t)clampi(e, 50, 80);
         p.accent = (uint8_t)clampi(f, 0, 127);
+        return a;
+    }
+    if (!std::strcmp(op, "Z")) { // Z a <machines hex> <values hex> : store a morph scene
+        return sceneFromLine(b.scenes, rest, kMachines - 1) ? kKitTouched : -1;
+    }
+    if (!std::strcmp(op, "Zc")) { // Zc a : empty a scene
+        if (std::sscanf(rest, "%d", &a) != 1 || a < 0 || a > 1) return -1;
+        b.scenes.set[a] = 0;
+        return kKitTouched;
+    }
+    if (!std::strcmp(op, "z")) { // z pat step value(255 = none) : MORPH lane
+        if (std::sscanf(rest, "%d %d %d", &a, &c, &d) != 3 || !validP(a) || !validS(c)) return -1;
+        b.patterns[a].morph[c] = d == kNoLock ? kNoLock : (uint8_t)clampi(d, 0, 127);
         return a;
     }
     if (!std::strcmp(op, "M")) { // M track machine
@@ -333,6 +353,7 @@ inline bool deserializeBank(Bank& b, const char* text)
     const bool oldFilter = text[4] < '4'; // before v0.7 params 12/13 were filter base/width
     for (auto& p : b.patterns) p.clear();
     b.resetKit();
+    b.scenes.clear();
     const char* s = text;
     std::string line;
     while (*s) {

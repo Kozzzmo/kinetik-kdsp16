@@ -101,9 +101,13 @@ enum GlobalParam {
     gECHO_MODEL, gECHO_MOD, gREV_MODEL, gREV_MOD,
     gMF_HP, gMF_LP, gMF_RESO,          // master filter (after the master FX)
     gCHO_MODEL, gCHO_RATE, gCHO_DEPTH, gCHO_TIME, gCHO_FB, gCHO_WIDTH, gCHO_TONE, gCHO_LEV,   // chorus (send)
-    gGL_CHANCE, gGL_SIZE, gGL_LEN, gGL_PITCH, gGL_FADE, gGL_REV, gGL_MIX,              // glitch / beat repeat
+    gGL_CHANCE, gGL_SIZE, gGL_LEN, gGL_PITCH, gGL_FADE, gGL_REV, gGL_MIX,              // CHAOS (glitch / beat repeat)
     gCHO_SEND,                         // + track: chorus send of each track (kTracks parameters)
-    gOUT_STEP = gCHO_SEND + kTracks, gOUT_LEDS, gOUT_PATTERN,
+    gCHA_SEND = gCHO_SEND + kTracks,   // + track: CHAOS (glitch) send of each track (0.12 / 0.7)
+    gMF_ON = gCHA_SEND + kTracks,      // master filter on / off
+    gMORPH,                            // scene morph A -> B
+    // new saved parameters go here, before the outputs (host parameter indices of saved values never move)
+    gOUT_STEP, gOUT_LEDS, gOUT_PATTERN,
     kGlobalParams
 };
 
@@ -130,6 +134,16 @@ static const uint8_t kMasterDefaults[kMasterCount] = {
     0, 30, 50, 40, 0, 100, 100, 64,
     0, 70, 50, 64, 30, 0, 127
 };
+
+// default of every saved global parameter (master table, per-track sends, switches)
+inline float globalDefault(int g)
+{
+    if (g >= gECHO_TIME && g < gECHO_TIME + kMasterCount) return kMasterDefaults[g - gECHO_TIME];
+    if (g >= gCHA_SEND && g < gCHA_SEND + kTracks) return 127.f;   // every track goes to CHAOS
+    if (g == gMF_ON) return 1.f;
+    if (g == gTEMPO) return 120.f;
+    return 0.f;                                                    // chorus sends, morph, pattern, play
+}
 
 // ---- machines ----
 enum Family { fOff, fTone, fSnare, fClap, fMetal, fShaker, fFM, fModal, fString, fNoise, fSample };
@@ -221,8 +235,13 @@ inline float lfoFreeHz(float rate) { return 0.03f * std::pow(1000.f, (rate < 0 ?
 inline int lfoTrackValue(int t) { return (t * 128 + 16) / 17; }
 inline int lfoShapeIndex(int v) { return v * 6 / 128; }
 inline int lfoTypeIndex(int v) { return v * 3 / 128; }
-inline int lfoDestIndex(int v) { return v * kLfoDests / 128; } // destinations: params 0..23
-inline int lfoDestValue(int p) { return (p * 128 + kLfoDests - 1) / kLfoDests; }  // inverse (smallest value)
+// LFO destinations: params 0..23, then the other LFOs' RATE / DEPTH and the scene MORPH (0.12). The knob value is read
+// through bins of 4 so that every value saved before 0.12 (lfoDestValue of 0..23) still means the same parameter.
+enum LfoVirtualDest { kDestL1Rate = kLfoDests, kDestL1Depth, kDestL2Rate, kDestL2Depth, kDestMorph, kDestCount };
+static const int8_t kDestOfBin[32] = {0, 1, 2, kDestL1Rate, 3, 4, 5, kDestL1Depth, 6, 7, 8, kDestL2Rate, 9, 10, 11, kDestL2Depth,
+                                      12, 13, 14, kDestMorph, 15, 16, 17, 17, 18, 19, 20, 20, 21, 22, 23, 23};
+inline int lfoDestIndex(int v) { return kDestOfBin[v < 0 ? 0 : (v > 127 ? 31 : v / 4)]; }
+inline int lfoDestValue(int d) { for (int v = 0; v < 128; ++v) if (lfoDestIndex(v) == d) return v; return 0; }  // smallest value
 inline int lfoTrackIndex(int v) { return v * 17 / 128; } // 0 = this track, 1..16 = track n
 
 // sequencer step scales

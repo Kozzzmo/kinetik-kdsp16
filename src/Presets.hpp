@@ -1,6 +1,7 @@
 // Kinetik KDSP-16 — factory presets (kit + patterns). All original material.
 #pragma once
 #include "Random.hpp"
+#include "FxPresets.hpp"
 #include <cstring>
 #include <algorithm>
 #include <initializer_list>
@@ -32,7 +33,7 @@ struct PB { // preset builder
             for (int p = 0; p < kTrackParams; ++p) tparam(v, t, p) = p >= 8 ? kFxDefaults[p - 8] : 0.f;
             b.machine[t] = mOFF; b.mute[t] = 0;
         }
-        for (int i = 0; i < kMasterCount; ++i) v[kGlobalBase + gECHO_TIME + i] = kMasterDefaults[i];
+        for (int g = gECHO_TIME; g < gOUT_STEP; ++g) v[kGlobalBase + g] = globalDefault(g);
         for (auto& p : b.patterns) p.clear();
     }
     // machine + synth params (-1 keeps the machine default)
@@ -71,6 +72,23 @@ struct PB { // preset builder
     void ratch(int pat, int t, int step, int n) { b.patterns[pat].ratch[t][step] = (uint8_t)n; }
     void cond(int pat, int t, int step, int c) { b.patterns[pat].cond[t][step] = (uint8_t)c; }
     void micro(int pat, int t, int step, int m) { b.patterns[pat].micro[t][step] = (int8_t)m; }
+    // morph scene a = the sound built so far, with some parameters changed ({index, value}; index = tpi(t, p) / gpi(g))
+    void scene(int a, std::initializer_list<std::pair<int, int>> changes)
+    {
+        b.scenes.set[a] = 1;
+        for (int t = 0; t < kTracks; ++t) b.scenes.mach[a][t] = b.machine[t];
+        for (int i = 0; i < kSceneValues; ++i) b.scenes.val[a][i] = (uint8_t)clampi((int)std::lround(v[i]), 0, 127);
+        for (const auto& c : changes) if (c.first >= 0 && c.first < kSceneValues) b.scenes.val[a][c.first] = (uint8_t)clampi(c.second, 0, 127);
+    }
+    static int tpi(int t, int p) { return t * kTrackParams + p; }
+    static int gpi(int g) { return kGlobalBase + g; }
+    // MORPH lane of a pattern: one value per step (-1 = follow the fader)
+    void lane(int pat, std::initializer_list<int> vals)
+    {
+        int st = 0;
+        for (int x : vals) { if (st >= kSteps) break; b.patterns[pat].morph[st++] = x < 0 ? kNoLock : (uint8_t)clampi(x, 0, 127); }
+    }
+    void speed(int t, int sp) { b.kit[t][kfSpeed] = (uint8_t)sp; }   // index into kTrackSpeedMult
     void settings(int pat, int len, int swing, int scale = 0, int accent = 64)
     {
         b.patterns[pat].length = (uint8_t)len; b.patterns[pat].swing = (uint8_t)swing;
@@ -697,7 +715,140 @@ static void presetAmbient(PB& b)
     b.g(gTEMPO, 80);
 }
 
-struct PresetDef { const char* name; const char* desc; void (*build)(PB&); };
+
+// ---- 0.12: presets that show the scenes, CHAOS, chorus and per-track SPEED (voiced with the exponential RESONANCE)
+static void presetMorphTechno(PB& b)
+{
+    b.kit(0, mKICK, {50, 70, 40, 30, 55, 5, 10, 40}); b.fx(0, tpDIST, 15);
+    b.kit(1, mCLAP, {64, 50, 45, 50, 25, 85, 20, 10}); b.fx(1, tpREV, 30);
+    b.kit(2, mCLHAT, {75, 18, 95, 95, 30, 60, 0, 0});
+    b.kit(3, mOPHAT, {75, 45, 90, 90, 30, 60, 0, 0});
+    b.kit(4, mPH_MALLET, {68, 40, 75, 40, 85, 50, 20, 0}); b.fx(4, tpDEL, 40);
+    b.kit(5, mFM_HAT, {90, 20, 0, 64, 90, 100, 60, 100});
+    for (int t = 0; t < 6; ++t) { b.fx(t, tpCUTOFF, 100); b.fx(t, tpRESO, 20); }
+    b.g(gECHO_TIME, 77); b.g(gECHO_FB, 55); b.g(gREV_SIZE, 60);
+    b.row(0, 0, "x...x...x...x...");
+    b.row(0, 1, "....x.......x...");
+    b.row(0, 2, "x.x.x.x.x.x.x.x.");
+    b.row(0, 3, "..x...x...x...x.");
+    b.row(0, 4, "x..x..x...x..x..");
+    b.melody(0, 4, 60, kMlSemi, {0, 3, 7, 10, 7, 3});
+    b.row(0, 5, "xxxxxxxxxxxxxxxx");
+    b.settings(0, 16, 52);
+    b.lane(0, {0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 127});   // A -> B over the bar
+    b.g(gTEMPO, 126);
+    b.scene(0, {{PB::tpi(4, tpCUTOFF), 55}, {PB::tpi(5, tpVOL), 40}, {PB::gpi(gREV_LEV), 30}, {PB::gpi(gECHO_LEV), 30}});
+    b.scene(1, {{PB::tpi(0, tpDIST), 60}, {PB::tpi(4, tpCUTOFF), 120}, {PB::tpi(4, tpRESO), 70}, {PB::tpi(5, tpVOL), 105},
+                {PB::tpi(3, 1), 90}, {PB::gpi(gREV_LEV), 90}, {PB::gpi(gECHO_LEV), 95}, {PB::gpi(gECHO_FB), 85}});
+}
+static void presetChaosBreaks(PB& b)
+{
+    b.kit(0, mKICK, {55, 55, 45, 25, 80, 5, 30, 50});
+    b.kit(1, mSNARE, {62, 38, 40, 15, 100, 60, 60, 40}); b.fx(1, tpDIST, 20);
+    b.kit(2, mCLHAT, {70, 22, 75, 70, 30, 64, 0, 20});
+    b.kit(3, mRIM, {60, 20, 40, 70, 30, 20, 40, 20});
+    b.kit(4, mFM_SNARE, {80, 25, 90, 25, 30, 50, 20, 80}); b.fx(4, tpVOL, 80);
+    b.kit(5, mSINE, {28, 70, 20, 30, 90, 0, 0, 50});
+    b.g(gCMP_THR, 90); b.g(gCMP_RAT, 50); b.g(gDRIVE, 20);
+    // CHAOS on the snares and hats only: the kick and the bass keep the groove
+    for (int t = 0; t < kTracks; ++t) b.g(gCHA_SEND + t, 0);
+    b.g(gCHA_SEND + 1, 127); b.g(gCHA_SEND + 2, 127); b.g(gCHA_SEND + 4, 110);
+    b.g(gGL_CHANCE, 45); b.g(gGL_SIZE, 70); b.g(gGL_LEN, 30); b.g(gGL_PITCH, 80); b.g(gGL_FADE, 25); b.g(gGL_REV, 30); b.g(gGL_MIX, 127);
+    b.row(0, 0, "X.x.......xx....");
+    b.row(0, 1, "....X..x.x..X..x");
+    b.row(0, 2, "x.x.x.x.x.x.x.x.");
+    b.row(0, 3, "...x..........x.");
+    b.row(0, 4, "......x.......x.");
+    b.row(0, 5, "x.........x.....");
+    b.melody(0, 5, 28, kSnSemi, {0, 3});
+    b.micro(0, 1, 7, 3); b.micro(0, 1, 9, -2);
+    b.settings(0, 16, 58);
+    b.g(gTEMPO, 172);
+}
+static void presetPolySpeed(PB& b)
+{
+    b.kit(0, mKICK, {48, 65, 40, 30, 60, 0, 10, 30});
+    b.kit(1, mCLAP, {66, 50, 45, 50, 25, 85, 20, 10}); b.fx(1, tpREV, 40);
+    b.kit(2, mCLHAT, {78, 15, 95, 95, 30, 60, 0, 0});
+    b.kit(3, mSHAKER, {15, 10, 30, 80, 110, 70, 90, 0});
+    b.kit(4, mCOWBELL, {66, 35, 60, 75, 50, 60, 20, 0}); b.fx(4, tpDEL, 30);
+    b.kit(5, mTOM, {70, 45, 20, 30, 50, 15, 0, 0}); b.g(gCHO_SEND + 5, 70);
+    b.kit(6, mPH_MALLET, {70, 50, 70, 40, 60, 50, 30, 0}); b.fx(6, tpREV, 50); b.g(gCHO_SEND + 6, 90);
+    b.g(gCHO_MODEL, chorusModelValue(cmEnsemble)); b.g(gCHO_LEV, 70);
+    b.row(0, 0, "x...x...x...x...");
+    b.row(0, 1, "....x.......x...");
+    b.row(0, 2, "x.x.x.x.x.x.x.x."); b.speed(2, 1);   // hats at 2x
+    b.row(0, 3, "x.xx.x"); b.speed(3, 3);             // shaker: 6 steps at 3/2x
+    b.row(0, 4, "x..x..x."); b.speed(4, 4);           // cowbell at 3/4x
+    b.row(0, 5, "x...x.x."); b.speed(5, 5);           // toms at half speed
+    b.row(0, 6, "x..x..x..x"); b.speed(6, 4);
+    b.melody(0, 6, 64, kMlSemi, {0, 7, 3, 10, 5});
+    b.settings(0, 16, 54);
+    b.g(gTEMPO, 118);
+}
+static void presetChorusDub(PB& b)
+{
+    b.kit(0, mKICK, {44, 85, 30, 40, 30, 0, 0, 20});
+    b.kit(1, mRIM, {70, 25, 30, 90, 20, 15, 60, 10}); b.fx(1, tpDEL, 80);
+    b.kit(2, mFM_BELL, {45, 40, 60, 70, 100, 80, 30, 40}); b.fx(2, tpDEL, 60); b.fx(2, tpREV, 60);
+    b.kit(3, mCLHAT, {70, 18, 80, 80, 30, 60, 0, 0});
+    b.kit(4, mNOISE, {0, 0, 10, 80, 127, 30, 90, 0}); b.fx(4, tpVOL, 40); b.fx(4, tpREV, 70);
+    for (int t : {1, 2}) b.g(gCHO_SEND + t, 110);
+    b.g(gCHO_MODEL, chorusModelValue(cmEnsemble)); b.g(gCHO_RATE, 30); b.g(gCHO_DEPTH, 80); b.g(gCHO_LEV, 72);
+    b.g(gECHO_TIME, fxDiv(d8D)); b.g(gECHO_FB, 85); b.g(gECHO_MODEL, echoModelValue(emTape)); b.g(gECHO_MOD, 60); b.g(gECHO_LEV, 72);
+    b.g(gREV_SIZE, 85); b.g(gREV_MODEL, reverbModelValue(rmHall));
+    b.row(0, 0, "x...x...x...x...");
+    b.row(0, 1, "..x.......x..x..");
+    b.row(0, 2, "...x......x.....");
+    b.melody(0, 2, 45, 2.f, {0, 5});
+    b.row(0, 3, "..x...x...x...x.");
+    b.row(0, 4, "x...............");
+    b.settings(0, 16, 54);
+    b.g(gTEMPO, 118);
+}
+static void presetLofiMorph(PB& b)
+{
+    b.kit(0, mKICK, {50, 55, 30, 30, 50, 10, 20, 40}); b.fx(0, tpSRR, 30);
+    b.kit(1, mSNARE, {60, 35, 30, 20, 80, 50, 40, 40}); b.fx(1, tpSRR, 40);
+    b.kit(2, mCLHAT, {65, 20, 70, 70, 40, 60, 0, 10}); b.fx(2, tpSRR, 30);
+    b.kit(3, mPH_STRING, {50, 50, 40, 40, 50, 40, 30, 20}); b.fx(3, tpREV, 40);
+    b.kit(4, mSHAKER, {20, 10, 30, 70, 100, 60, 80, 0}); b.fx(4, tpVOL, 60);
+    b.g(gDRIVE, 25); b.g(gEQ_HIGH, 52);
+    // a slow LFO on the shaker track sweeps the MORPH: clean -> worn tape and back
+    b.fx(4, tpLFOS, 10); b.fx(4, tpLFOD, 127); b.fx(4, tpLFOSH, 25); b.fx(4, tpLFODST, lfoDestValue(kDestMorph));
+    b.row(0, 0, "x......x..x.....");
+    b.row(0, 1, "....x.......x...");
+    b.row(0, 2, "x.xx.x.xx.x.x.xx");
+    b.row(0, 3, "x.......x.......");
+    b.melody(0, 3, 50, kKsSemi, {0, 3, 7, 5});
+    b.row(0, 4, "..x...x...x...x.");
+    b.settings(0, 16, 62);
+    b.g(gTEMPO, 86);
+    b.scene(0, {{PB::tpi(0, tpSRR), 0}, {PB::tpi(1, tpSRR), 0}, {PB::tpi(2, tpSRR), 0}, {PB::gpi(gDRIVE), 5}, {PB::gpi(gEQ_HIGH), 64}});
+    b.scene(1, {{PB::tpi(0, tpSRR), 60}, {PB::tpi(1, tpSRR), 75}, {PB::tpi(2, tpSRR), 70}, {PB::gpi(gDRIVE), 50}, {PB::gpi(gEQ_HIGH), 40},
+                {PB::tpi(3, tpCUTOFF), 60}, {PB::gpi(gMF_LP), 80}, {PB::gpi(gMF_ON), 1}});
+}
+static void presetGlitchGarage(PB& b)
+{
+    b.kit(0, mKICK, {48, 60, 40, 30, 60, 0, 10, 30});
+    b.kit(1, mRIM, {65, 20, 35, 85, 25, 15, 55, 10});
+    b.kit(2, mCLHAT, {75, 15, 90, 90, 30, 60, 0, 0});
+    b.kit(3, mCLAP, {66, 50, 45, 50, 25, 85, 20, 10}); b.fx(3, tpREV, 40);
+    b.kit(4, mSINE, {30, 60, 20, 30, 80, 0, 0, 40});
+    for (int t = 0; t < kTracks; ++t) b.g(gCHA_SEND + t, 0);
+    b.g(gCHA_SEND + 1, 127); b.g(gCHA_SEND + 3, 127);
+    b.g(gGL_CHANCE, 30); b.g(gGL_SIZE, 90); b.g(gGL_LEN, 30); b.g(gGL_PITCH, 64); b.g(gGL_FADE, 40); b.g(gGL_REV, 60); b.g(gGL_MIX, 120);
+    b.row(0, 0, "x.....x...x.....");
+    b.row(0, 1, "..x..x.....x.x..");
+    b.row(0, 2, "..x...x...x...x.");
+    b.row(0, 3, "....x.......x...");
+    b.row(0, 4, "x.....x...x..x..");
+    b.melody(0, 4, 30, kSnSemi, {0, 0, 5, 3});
+    b.settings(0, 16, 66);
+    b.g(gTEMPO, 132);
+}
+
+struct PresetDef { const char* name; const char* desc; void (*build)(PB&); bool expReso = false; };   // expReso: voiced with the 0.11 curve
 
 static const PresetDef kPresets[] = {
     {"Init",               "Factory state: default kit, every parameter at its base, empty sequencer", presetInit},
@@ -721,6 +872,12 @@ static const PresetDef kPresets[] = {
     {"Jungle",             "168 BPM chopped break feel, sub bass, dubby metal stabs",        presetJungle},
     {"Polyrhythm Lab",     "Every track has its own length (5 to 16 steps): ever-changing", presetPolyLab},
     {"Ambient Bells",      "Slow, long track lengths, bells, plucks, washed-out echo",       presetAmbient},
+    {"Morph Techno",       "Scenes A/B: the MORPH steps open the mallets, drive and echo bar by bar", presetMorphTechno, true},
+    {"Chaos Breaks",       "172 BPM break; CHAOS repeats only the snares and hats",           presetChaosBreaks, true},
+    {"Speed Lab",          "Hats 2x, shaker 3/2x, cowbell 3/4x, toms 1/2x; ensemble chorus", presetPolySpeed, true},
+    {"Chorus Dub",         "Ensemble chorus on rims and bells, dub tape echo, hall",          presetChorusDub, true},
+    {"Lo-Fi Morph",        "An LFO on MORPH wears the beat from clean to old tape and back",  presetLofiMorph, true},
+    {"Glitch Garage",      "Swung 2-step; CHAOS reverses and stutters the rims and claps",    presetGlitchGarage, true},
 };
 static constexpr int kNumPresets = (int)(sizeof(kPresets) / sizeof(kPresets[0]));
 
@@ -730,6 +887,7 @@ inline void buildPreset(int i, float* values, Bank& bank)
     PB b(values, bank);
     b.g(gTEMPO, 120);
     kPresets[i].build(b);
+    if (kPresets[i].expReso) return;
     // the presets were voiced with the linear RESONANCE curve used before 0.11: convert their values (knobs and
     // locks) to the exponential curve (resoQ) so they keep the same resonance
     auto conv = [](float v, float qMin, float span) {
