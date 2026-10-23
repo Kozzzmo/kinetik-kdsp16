@@ -229,6 +229,7 @@ protected:
 
     int pageParam(int pg, int k) const
     {
+        if (k < 0 || k >= 8) return -1;
         switch (pg) {
         case pgSynth: return k;
         case pgFilter: { static const int f[8] = {tpCUTOFF, tpRESO, tpFTYPE, tpFENV, tpFDEC, tpEQF, tpEQG, -1}; return f[k & 7]; }
@@ -375,7 +376,10 @@ protected:
     bool showSmpLoad() const { return page == pgSynth && lockStep < 0 && machineOf(selTrack) == mSAMPLE; }
     R lockClear() const { return {596.f, 156.f, 94.f, 24.f}; }
     R pageTab(int i) const { return {20.f + i * 97.4f, 304.f, 94.f, 28.f}; }
-    R knob(int k) const { return {20.f + k * 85.f, 340.f, 85.f, 120.f}; }
+    // track knobs: 8, or 9 on the SYNTH page of a kick (9th = ATTACK, a global host parameter per track)
+    bool kickAttackSlot() const { const int m = machineOf(selTrack); return page == pgSynth && (m == mKICK || m == mFM_KICK || m == mPH_KICK); }
+    int slots() const { return kickAttackSlot() ? 9 : 8; }
+    R knob(int k) const { const float w = 680.f / slots(); return {20.f + k * w, 340.f, w, 120.f}; }
     R mTab(int i) const { const float w = (448.f - (kMPages - 1) * 4.f) / kMPages; return {716.f + i * (w + 4.f), 146.f, w, 28.f}; }
     // master knobs: 4 per row (8), the ECHO tab has 6 per row (12)
     int mSlots() const { return mpage == mpEcho ? 12 : 8; }
@@ -1276,11 +1280,16 @@ protected:
 
         for (int i = 0; i < kPages; ++i) button(pageTab(i), kPageNames[i], page == i, 11.5f);
 
-        for (int k = 0; k < 8; ++k) {
+        for (int k = 0; k < slots(); ++k) {
             const int pi = pageParam(page, k);
             if (sendG(k) >= 0) {
                 const float cv = sendValue(k);
-                drawKnob(knob(k), cv / 127.f, sendG(k) == gCHO_SEND ? "CHORUS" : "CHAOS", cv < 0.5f ? std::string("OFF") : std::to_string((int)std::lround(cv)), false,
+                std::string vt = cv < 0.5f ? std::string("OFF") : std::to_string((int)std::lround(cv));
+                if (sendG(k) == gKATK) {
+                    const int a = (int)std::lround((cv - 64.f) / 63.f * 100.f);
+                    vt = a == 0 ? std::string("0") : (a < 0 ? "SOFT " + std::to_string(-a) : "PUNCH " + std::to_string(a));
+                }
+                drawKnob(knob(k), cv / 127.f, sendG(k) == gCHO_SEND ? "CHORUS" : (sendG(k) == gKATK ? "ATTACK" : "CHAOS"), vt, false,
                          drag == dkSend && dragIndex == k, true);
                 continue;
             }
@@ -2683,9 +2692,10 @@ protected:
     float hovX = -1.f, hovY = -1.f; double hovSince = 0.0, tipBlockUntil = 0.0; bool tipShown = false, tipNone = false; std::string tipText;
     std::string tipAt(float x, float y)
     {
-        for (int k = 0; k < 8; ++k)
+        for (int k = 0; k < slots(); ++k)
             if (knob(k).in(x, y)) {
                 if (sendG(k) == gCHO_SEND) return "CHORUS - how much of this track goes to the master chorus (CHORUS tab). Double-click: off.";
+                if (sendG(k) == gKATK) return "ATTACK - shape of the kick's start: left = softer (the beat fades in, up to 25 ms), right = punchier (the first milliseconds pushed). Centre = as designed. Double-click: centre.";
                 if (sendG(k) == gCHA_SEND) return "CHAOS - how much of this track the CHAOS effect may grab and repeat (CHAOS tab). 0 = never repeated.";
                 if (euclidSlot(k)) return k == 6 ? "EUCLID - spreads this many hits evenly over the track. Replaces the trigs of the track (undo restores)."
                                                  : "ROTATE - moves the Euclidean rhythm later or earlier.";
@@ -2869,7 +2879,7 @@ protected:
             }
         if (mpage == mpMorph && morphTabClick(x, y, right, dbl)) return true;
 
-        for (int k = 0; k < 8; ++k)
+        for (int k = 0; k < slots(); ++k)
             if (sendG(k) >= 0 && knob(k).in(x, y)) {
                 const uint32_t idx = kGlobalBase + sendG(k) + selTrack;
                 if (dbl) { setParamGesture(idx, globalDefault(sendG(k) + selTrack)); repaint(); return true; }
@@ -2895,7 +2905,7 @@ protected:
             drag = dkKit; dragIndex = k; dragY = y; dragStart = bank->kit[selTrack][kitField(k)];
             repaint(); return true;
         }
-        for (int k = 0; k < 8; ++k) {
+        for (int k = 0; k < slots(); ++k) {
             if (!knob(k).in(x, y) || pageParam(page, k) < 0) continue;
             const int pi = pageParam(page, k);
             if (dbl) {
@@ -3082,7 +3092,7 @@ protected:
         if (d == 0.f || overlay != ovNone) return false;
         for (int k = 8; k < mSlots(); ++k)   // ECHO tab knobs 9-12
             if (mKnob(k).in(x, y) && masterParam(mpage, k) >= 0) { setMaster(k, gp(masterParam(mpage, k)) + d, true); return true; }
-        for (int k = 0; k < 8; ++k) {
+        for (int k = 0; k < slots(); ++k) {
             if (knob(k).in(x, y) && sendG(k) >= 0) {
                 setParamGesture(kGlobalBase + sendG(k) + selTrack, clampf(sendValue(k) + d, 0.f, 127.f)); repaint(); return true;
             }
@@ -3175,6 +3185,7 @@ private:
     // per-track send knobs that are global host parameters (gCHO_SEND + t, gCHA_SEND + t): base index or -1
     int sendG(int k) const
     {
+        if (page == pgSynth) return k == 8 && kickAttackSlot() ? gKATK : -1;
         if (page != pgFx) return -1;
         return k == 4 ? gCHO_SEND : (k == 5 ? gCHA_SEND : -1);
     }

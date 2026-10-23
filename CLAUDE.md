@@ -232,3 +232,13 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
 - Logo: the Kinetik "Orbit" mark (`LogoMark.hpp`, shared: `drawOrbitMark`, colours per `LogoStyle`; RISO = black
   badge) + product name in Unbounded Bold (`fnLogo`, `kFontUnbounded` in `Fonts.hpp`, ASCII subset, OFL). The star
   (`drawSparkle`) is no longer used by the logo. J-Slice and KDYN-10 draw the same mark with their toolkits.
+
+## Added in KDSP-16 0.14
+
+- Kick ATTACK: saved globals `gKATK + t` (default 64, KDSP-only, after the echo extras); `Voice::attack` (-1..+1) set in
+  `controlTrack`, `Voice::shapeAttack` after the machine renders (kick machines only): fade-in up to 25 ms below 0,
+  transient boost `1 + 1.5 a e^(-t / 3.5 ms)` above. UI: SYNTH page of a kick = 9 knobs (`slots()`, `kickAttackSlot()`,
+  `knob(k)` width = 680 / slots; `pageParam` returns -1 for k >= 8; knob 9 = `sendG` -> `gKATK`). Test: `tests/kickattack.cpp`.
+- `Scene.hpp`: `sceneFromLine` accepts shorter lines (scenes saved before parameters were added; the missing values get
+  `globalDefault`) and fewer machine bytes. Shared helpers `tpIndex` / `tpOf` / `choSendG` / `chaSendG` in `Params.hpp`
+  (trivial here; KMSP-6 keeps tracks 7-8 after the globals).

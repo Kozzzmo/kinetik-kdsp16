@@ -410,7 +410,7 @@ struct Voice {
     {
         vel = velocity;
         if (fam == fOff) { active = false; return; }
-        active = true; t = 0;
+        active = true; t = 0; atkPos = 0;
         ph1 = ph2 = phm = 0; mPrev = mPrev2 = 0; tremPh = 0;
         amp = 1.f; amp2 = 1.f; penv = 1.f; nAmp = 1.f; clickAmp = 1.f;
         burstIdx = 0; burstAmp = 0; tailAmp = 0; fastAmp = 1.f; bellAmp = 1.f; modEnv = 1.f;
@@ -470,6 +470,29 @@ struct Voice {
         }
         const float g = vel * gainNorm;
         for (int i = 0; i < n; ++i) out[i] *= g;
+        if (attack != 0.f && isKick(machine)) shapeAttack(out, n);
+    }
+
+    // kick ATTACK (-1..+1, 0 = unchanged): below centre the beat fades in (up to 25 ms, softer beater), above it the
+    // first milliseconds are pushed (harder, punchier transient)
+    float attack = 0.f;
+    uint32_t atkPos = 0;
+    static bool isKick(int m) { return m == mKICK || m == mFM_KICK || m == mPH_KICK; }
+    void shapeAttack(float* out, int n)
+    {
+        if (attack < 0.f) {
+            const float len = std::max(16.f, attack * attack * 0.025f * sr);
+            for (int i = 0; i < n && (float)atkPos < len; ++i, ++atkPos) {
+                const float x = (float)atkPos / len;
+                out[i] *= x * x * (3.f - 2.f * x);
+            }
+        } else {
+            const float tau = 0.0035f * sr, gain = 1.5f * attack;
+            const uint32_t end = (uint32_t)(tau * 6.f);
+            for (int i = 0; i < n && atkPos < end; ++i, ++atkPos) {
+                out[i] *= 1.f + gain * std::exp(-(float)atkPos / tau);   // smooth back to x1 (no step)
+            }
+        }
     }
 
     inline float applyOut(float s)

@@ -107,6 +107,8 @@ enum GlobalParam {
     gMF_ON = gCHA_SEND + kTracks,      // master filter on / off
     gMORPH,                            // scene morph A -> B
     gECHO_RTIME, gECHO_DRIVE, gECHO_DUCK, gECHO_FREEZE,   // echo extras (0.13 / 0.8): right time, loop drive, ducking, freeze
+    gKATK,                             // + t: kick ATTACK of each track (0.14), 64 = as before; KDSP-16 only
+    gKATK_END = gKATK + kTracks - 1,
     // new saved parameters go here, before the outputs (host parameter indices of saved values never move)
     gOUT_STEP, gOUT_LEDS, gOUT_PATTERN,
     kGlobalParams
@@ -114,6 +116,12 @@ enum GlobalParam {
 
 static constexpr int kGlobalBase = kTracks * kTrackParams;
 static constexpr int kTotalParams = kGlobalBase + kGlobalParams;
+// host parameter index of track parameter p of track t, and back (KMSP-6 keeps tracks 7-8 after the globals; here
+// every track comes first). Shared code (Scene.hpp) uses these.
+inline int tpIndex(int t, int p) { return t * kTrackParams + p; }
+inline bool tpOf(int i, int& t, int& p) { if (i < 0 || i >= kGlobalBase) return false; t = i / kTrackParams; p = i % kTrackParams; return true; }
+inline int choSendG(int t) { return gCHO_SEND + t; }
+inline int chaSendG(int t) { return gCHA_SEND + t; }
 
 // master parameters gECHO_TIME .. gREV_MOD (index g - gECHO_TIME)
 static constexpr int kMasterCount = gGL_MIX - gECHO_TIME + 1;
@@ -143,6 +151,7 @@ inline float globalDefault(int g)
     if (g >= gCHA_SEND && g < gCHA_SEND + kTracks) return 127.f;   // every track goes to CHAOS
     if (g == gMF_ON) return 1.f;
     if (g == gECHO_RTIME) return 64.f;
+    if (g >= gKATK && g < gKATK + kTracks) return 64.f;   // kick ATTACK: centre = unchanged
     if (g == gTEMPO) return 120.f;
     return 0.f;                                                    // chorus sends, morph, pattern, play
 }

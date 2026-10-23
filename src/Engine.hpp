@@ -153,9 +153,10 @@ public:
         const float m = morphCur;
         for (int i = 0; i < kSceneValues; ++i) {
             if (!sceneParam(i)) continue;
-            float* dst = i < kGlobalBase ? &trackParam[i / kTrackParams][i % kTrackParams] : &global[i - kGlobalBase];
-            if (i < kGlobalBase && i % kTrackParams < 8) {   // synth knobs: only if the machine is the same in both scenes
-                const int t = i / kTrackParams;
+            int t = 0, tpar = 0;
+            const bool isTrack = tpOf(i, t, tpar);
+            float* dst = isTrack ? &trackParam[t][tpar] : &global[i - kGlobalBase];
+            if (isTrack && tpar < 8) {   // synth knobs: only if the machine is the same in both scenes
                 const int ma = sc.set[0] ? sc.mach[0][t] : bank.machine[t], mb = sc.set[1] ? sc.mach[1][t] : bank.machine[t];
                 if (ma != mb || ma != bank.machine[t]) continue;
             }
@@ -524,6 +525,7 @@ private:
         tr.del = e[tpDEL] / 127.f * 1.4f; tr.rev = e[tpREV] / 127.f * 1.4f;   // sends go above unity
         tr.cho = global[gCHO_SEND + t] / 127.f * 1.4f;                       // chorus send (a global parameter per track)
         tr.cha = global[gCHA_SEND + t] / 127.f;                              // CHAOS send
+        tr.voice.attack = clampf((global[gKATK + t] - 64.f) / 63.f, -1.f, 1.f);   // kick ATTACK
     }
 
     void renderSegment(float* const* outs, uint32_t n)

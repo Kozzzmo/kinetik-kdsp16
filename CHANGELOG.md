@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.0
+
+- **Kick ATTACK**: the KICK, FM KICK and PH KICK machines get a 9th knob on the SYNTH page. Left of centre the beat
+  fades in (up to 25 ms, softer beater), right of centre the first milliseconds are pushed (harder, punchier).
+  Centre = the sound so far; automatable per track ("Txx Kick Attack").
+- Fix: scenes saved by 0.12 are loaded again by 0.13 and later (the parameters added since take their default).
+
 ## 0.13.0
 
 - **Echo rework**: three new models, **MULTI-TAP** (four taps before each repeat, scattered left / right; MOD = spacing),
