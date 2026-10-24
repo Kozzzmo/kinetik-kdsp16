@@ -832,54 +832,319 @@ static void presetGlitchGarage(PB& b)
     b.g(gTEMPO, 132);
 }
 
-struct PresetDef { const char* name; const char* desc; void (*build)(PB&); bool expReso = false; };   // expReso: voiced with the 0.11 curve
+
+// ---- 0.16: new presets (kick ATTACK, echo models / extras, chorus, CHAOS, SPEED; voiced with the exponential RESONANCE)
+static void presetPeakTechno(PB& b)
+{
+    b.kit(0, mKICK, {46, 58, 50, 28, 70, 0, 10, 45}); b.g(gKATK + 0, 100);                 // punchy kick
+    b.kit(1, mSINE, {30, 70, 10, 30, 0, 0, 20, 40}); b.fx(1, tpVOL, 70); b.fx(1, tpDEL, 70);  // rumble into a diffuse echo
+    b.kit(2, mCLAP, {64, 55, 60, 60, 30, 85, 25, 20}); b.fx(2, tpREV, 45);
+    b.kit(3, mCLHAT, {74, 14, 92, 88, 25, 64, 0, 10}); b.fx(3, tpPAN, 50);
+    b.kit(4, mOPHAT, {72, 45, 90, 85, 25, 64, 0, 10}); b.fx(4, tpPAN, 78);
+    b.kit(5, mFM_CYMBAL, {70, 55, 70, 40, 85, 95, 60, 85}); b.fx(5, tpVOL, 78); b.fx(5, tpPAN, 84);
+    b.kit(6, mPH_METAL, {58, 45, 70, 80, 40, 60, 70, 10}); b.fx(6, tpDEL, 50); b.fx(6, tpPAN, 40);
+    b.choke(3, 1); b.choke(4, 1);
+    b.g(gECHO_TIME, fxDiv(d16D)); b.g(gECHO_FB, 70); b.g(gECHO_MODEL, echoModelValue(emDiffuse)); b.g(gECHO_MOD, 80); b.g(gECHO_LPF, 70);
+    b.g(gREV_SIZE, 60); b.g(gCMP_THR, 95); b.g(gCMP_RAT, 50); b.g(gDRIVE, 15);
+    b.row(0, 0, "x...x...x...x...");
+    b.row(0, 1, "..x...x...x...x.");
+    b.row(0, 2, "....x.......x...");
+    b.row(0, 3, "x.xxx.xxx.xxx.xx");
+    b.row(0, 4, "..x...x...x...x.");
+    b.row(0, 5, "x...x...x...x...");
+    b.row(0, 6, "......x.....x..x");
+    b.settings(0, 16, 50);
+    b.row(1, 0, "x...x...x...x...");
+    b.row(1, 1, "..x...x...x.x.x.");
+    b.row(1, 2, "....x.......x.xx");
+    b.row(1, 3, "xxxxxxxxxxxxxxxx");
+    b.row(1, 4, "..x...x...x...x.");
+    b.row(1, 5, "x...x...x...x...");
+    b.row(1, 6, "...x..x...x..x..");
+    b.settings(1, 16, 50);
+    b.g(gTEMPO, 132);
+}
+static void presetChicagoHouse(PB& b)
+{
+    b.kit(0, mKICK, {50, 64, 30, 30, 40, 0, 10, 30});
+    b.kit(1, mCLAP, {60, 50, 55, 55, 30, 75, 30, 10}); b.fx(1, tpREV, 35);
+    b.kit(2, mCLHAT, {70, 18, 85, 80, 25, 64, 0, 0}); b.fx(2, tpPAN, 48);
+    b.kit(3, mOPHAT, {70, 50, 85, 80, 25, 64, 0, 0}); b.fx(3, tpPAN, 80);
+    b.kit(4, mCOWBELL, {62, 40, 64, 70, 40, 70, 30, 20}); b.fx(4, tpVOL, 70); b.fx(4, tpPAN, 36); b.fx(4, tpDEL, 35);
+    b.kit(5, mRIM, {66, 18, 45, 80, 20, 15, 50, 10}); b.fx(5, tpPAN, 92);
+    b.kit(6, mSINE, {32, 50, 15, 30, 40, 0, 0, 35});
+    b.choke(2, 1); b.choke(3, 1);
+    b.g(gECHO_TIME, fxDiv(d8D)); b.g(gECHO_FB, 40); b.g(gECHO_MODEL, echoModelValue(emTape)); b.g(gECHO_MOD, 40);
+    b.row(0, 0, "x...x...x...x...");
+    b.row(0, 1, "....x.......x...");
+    b.row(0, 2, "x.x.x.x.x.x.x.x.");
+    b.row(0, 3, "..x...x...x...x.");
+    b.row(0, 4, "...x......x.....");
+    b.row(0, 5, ".x..x.x..x..x.x.");
+    b.row(0, 6, "..x..x..x...x.x.");
+    b.melody(0, 6, 32, kSnSemi, {0, 0, 7, 5, 0});
+    b.settings(0, 16, 58);
+    b.g(gTEMPO, 122);
+}
+static void presetAfroHouse(PB& b)
+{
+    b.kit(0, mKICK, {44, 60, 35, 30, 40, 0, 10, 20}); b.g(gKATK + 0, 40);              // a softer kick
+    b.kit(1, mTOM, {82, 38, 20, 30, 50, 15, 0, 0}); b.fx(1, tpPAN, 40);                  // conga high
+    b.kit(2, mTOM, {64, 42, 20, 30, 50, 15, 0, 0}); b.fx(2, tpPAN, 88);                  // conga low
+    b.kit(3, mSHAKER, {8, 5, 25, 85, 110, 40, 80, 0}); b.fx(3, tpVOL, 78); b.speed(3, 3); // shaker at 3/2x
+    b.kit(4, mCLAVE, {78, 20, 50, 80, 40, 0, 10, 0}); b.fx(4, tpPAN, 30);
+    b.kit(5, mFM_BELL, {60, 40, 50, 20, 55, 70, 40, 70}); b.fx(5, tpDEL, 45); b.fx(5, tpPAN, 96);
+    b.kit(6, mRIM, {64, 18, 45, 80, 20, 15, 50, 10}); b.fx(6, tpPAN, 76);
+    b.kit(7, mPH_MALLET, {60, 45, 65, 40, 70, 55, 30, 0}); b.fx(7, tpDEL, 40); b.fx(7, tpREV, 40);
+    b.g(choSendG(5), 70); b.g(choSendG(7), 60); b.g(gCHO_MODEL, chorusModelValue(cmEnsemble)); b.g(gCHO_LEV, 60);
+    b.g(gECHO_TIME, fxDiv(d8T)); b.g(gECHO_FB, 45); b.g(gECHO_MODEL, echoModelValue(emPingPong)); b.g(gREV_SIZE, 55);
+    b.row(0, 0, "x...x...x...x...");
+    b.row(0, 1, "..x..x....x..x.x");
+    b.row(0, 2, "x.....x..x....x.");
+    b.row(0, 3, "x.xxx.xxx.xxx.xx");
+    b.row(0, 4, "x..x..x...x.x...");   // 3-2 clave
+    b.row(0, 5, ".......x.......x");
+    b.row(0, 6, "....x.......x...");
+    b.row(0, 7, "x..x..x...x..x..");
+    b.melody(0, 7, 62, kMlSemi, {0, 3, 7, 10, 7, 3});
+    b.settings(0, 16, 54);
+    b.g(gTEMPO, 120);
+}
+static void presetLiquidDnb(PB& b)
+{
+    b.kit(0, mKICK, {50, 50, 40, 25, 50, 0, 10, 20}); b.g(gKATK + 0, 45);
+    b.kit(1, mSNARE, {58, 38, 40, 18, 75, 70, 60, 45}); b.fx(1, tpREV, 30);
+    b.kit(2, mCLHAT, {76, 14, 92, 88, 25, 64, 0, 0}); b.fx(2, tpPAN, 52);
+    b.kit(3, mCYMBAL, {66, 60, 60, 60, 25, 70, 40, 0}); b.fx(3, tpVOL, 60); b.fx(3, tpPAN, 84);   // ride
+    b.kit(4, mRIM, {66, 18, 45, 80, 20, 15, 50, 10}); b.fx(4, tpDEL, 60); b.fx(4, tpPAN, 36);
+    b.kit(5, mFM_BELL, {64, 55, 40, 10, 45, 70, 50, 60}); b.fx(5, tpDEL, 45); b.fx(5, tpREV, 50);
+    b.kit(6, mSINE, {28, 65, 10, 30, 30, 0, 20, 30});
+    b.g(choSendG(5), 80); b.g(gCHO_MODEL, chorusModelValue(cmChorus)); b.g(gCHO_LEV, 60);
+    b.g(gECHO_TIME, fxDiv(d8D)); b.g(gECHO_FB, 55); b.g(gECHO_MODEL, echoModelValue(emMulti)); b.g(gECHO_MOD, 60); b.g(gECHO_DUCK, 60);
+    b.g(gREV_SIZE, 70); b.g(gREV_LEV, 60);
+    b.row(0, 0, "x.........x.....x.x.......x.....");
+    b.row(0, 1, "....x.......x.......x.......x...");
+    b.row(0, 2, "x.x.x.xxx.x.x.x.x.x.x.xxx.x.x.xx");
+    b.row(0, 3, "..x...x...x...x...x...x...x...x.");
+    b.row(0, 4, ".......x.....x.........x...x....");
+    b.row(0, 5, "x...............x.......x.......");
+    b.melody(0, 5, 64, 2.f, {0, 7, 5});
+    b.row(0, 6, "x.........x.....x.x.......x.....");
+    b.melody(0, 6, 28, kSnSemi, {0, 0, 0, 3, 5});
+    b.settings(0, 32, 52);
+    for (int s : {6, 14, 22, 30}) b.lock(0, 1, s, tpVOL, 45);   // ghost snares
+    b.row(0, 1, "....x.x.....x.x.....x.x.....x..x");
+    b.g(gTEMPO, 174);
+}
+static void presetBoomBap(PB& b)
+{
+    b.kit(0, mKICK, {50, 55, 30, 25, 60, 10, 20, 50});
+    b.kit(1, mSNARE, {56, 45, 35, 20, 85, 55, 55, 55}); b.fx(1, tpDIST, 25);
+    b.kit(2, mCLHAT, {66, 20, 70, 75, 30, 64, 10, 20}); b.fx(2, tpPAN, 46);
+    b.kit(3, mRIM, {62, 20, 50, 70, 30, 20, 40, 20}); b.fx(3, tpPAN, 84);
+    b.kit(4, mPH_STRING, {48, 60, 45, 50, 50, 0, 30, 10}); b.fx(4, tpDEL, 40);   // plucked sample-like stab
+    b.kit(5, mSINE, {30, 55, 10, 30, 20, 0, 10, 40});
+    for (int t = 0; t < 4; ++t) b.fx(t, tpSRR, 25);
+    b.g(gECHO_TIME, fxDiv(d4)); b.g(gECHO_FB, 35); b.g(gECHO_MODEL, echoModelValue(emTape)); b.g(gECHO_MOD, 70); b.g(gECHO_DRIVE, 40);
+    b.g(gDRIVE, 25); b.g(gEQ_HIGH, 52); b.g(gCMP_THR, 90); b.g(gCMP_RAT, 60);
+    b.row(0, 0, "x......x..x.....");
+    b.row(0, 1, "....x.......x...");
+    b.row(0, 2, "x.x.x.x.x.x.x.x.");
+    b.row(0, 3, ".......x......x.");
+    b.row(0, 4, "x.........x.....");
+    b.melody(0, 4, 48, kKsSemi, {0, -2});
+    b.row(0, 5, "x......x..x.....");
+    b.melody(0, 5, 30, kSnSemi, {0, 0, -2});
+    b.settings(0, 16, 62);
+    b.row(1, 0, "x......x.xx...x.");
+    b.row(1, 1, "....x.......x..x");
+    b.row(1, 2, "x.x.x.x.x.x.x.x.");
+    b.row(1, 4, "x.....x...x.....");
+    b.melody(1, 4, 48, kKsSemi, {0, 3, -2});
+    b.row(1, 5, "x......x.xx...x.");
+    b.melody(1, 5, 30, kSnSemi, {0, 0, 3, 3, -2});
+    b.settings(1, 16, 62);
+    b.g(gTEMPO, 90);
+}
+static void presetElectroBass(PB& b)
+{
+    b.kit(0, mKICK, {44, 70, 45, 35, 50, 0, 15, 40}); b.g(gKATK + 0, 90);
+    b.kit(1, mCLAP, {66, 45, 50, 60, 35, 70, 25, 20});
+    b.kit(2, mCLHAT, {76, 12, 90, 90, 25, 64, 0, 0}); b.fx(2, tpPAN, 50);
+    b.kit(3, mCOWBELL, {66, 35, 64, 70, 40, 70, 30, 20}); b.fx(3, tpVOL, 72); b.fx(3, tpPAN, 82); b.fx(3, tpDEL, 50);
+    b.kit(4, mSINE, {30, 70, 20, 30, 40, 0, 20, 60}); b.fx(4, tpVOL, 110);   // 808 bass
+    b.kit(5, mFM_TOM, {50, 45, 40, 40, 50, 40, 30, 30}); b.fx(5, tpPAN, 34);
+    b.g(gECHO_TIME, fxDiv(d8D)); b.g(gECHO_FB, 50); b.g(gECHO_MODEL, echoModelValue(emPingPong)); b.g(gECHO_RTIME, 80);
+    b.row(0, 0, "x......x..x.....");
+    b.row(0, 1, "....x.......x...");
+    b.row(0, 2, "xxxxxxxxxxxxxxxx");
+    for (int s = 1; s < 16; s += 2) b.lock(0, 2, s, tpVOL, 70);
+    b.row(0, 3, "..x.....x.x...x.");
+    b.row(0, 4, "x..x..x...x..x..");
+    b.melody(0, 4, 30, kSnSemi, {0, 0, 3, 0, 5, 7});
+    b.row(0, 5, "...........x.x.x");
+    b.settings(0, 16, 54);
+    b.g(gTEMPO, 128);
+}
+static void presetReverseDub(PB& b)
+{
+    b.kit(0, mKICK, {42, 70, 30, 30, 30, 0, 10, 20}); b.g(gKATK + 0, 30);
+    b.kit(1, mRIM, {60, 22, 50, 75, 30, 20, 40, 10}); b.fx(1, tpDEL, 90); b.fx(1, tpPAN, 40);
+    b.kit(2, mFM_BELL, {58, 60, 40, 10, 50, 70, 50, 60}); b.fx(2, tpDEL, 80); b.fx(2, tpREV, 60); b.fx(2, tpPAN, 88);
+    b.kit(3, mSHAKER, {10, 10, 30, 80, 100, 50, 70, 0}); b.fx(3, tpVOL, 65);
+    b.kit(4, mNOISE, {0, 0, 90, 60, 90, 20, 0, 0}); b.fx(4, tpVOL, 85); b.fx(4, tpREV, 70);
+    b.kit(5, mSINE, {26, 80, 5, 30, 20, 10, 30, 20});
+    b.g(gECHO_TIME, fxDiv(d4)); b.g(gECHO_FB, 70); b.g(gECHO_MODEL, echoModelValue(emReverse)); b.g(gECHO_MOD, 30); b.g(gECHO_LEV, 80);
+    b.g(gREV_SIZE, 100); b.g(gREV_LEV, 70);
+    b.row(0, 0, "x.........x.....");
+    b.row(0, 1, "....x.......x...");
+    b.row(0, 2, "......x.........");
+    b.melody(0, 2, 58, 2.f, {0});
+    b.row(0, 3, "..x...x...x...x.");
+    b.row(0, 4, "x...............");
+    b.row(0, 5, "x.........x.....");
+    b.melody(0, 5, 26, kSnSemi, {0, -2});
+    b.settings(0, 16, 50);
+    b.g(gTEMPO, 72);
+}
+static void presetHalftime(PB& b)
+{
+    b.kit(0, mKICK, {46, 60, 45, 30, 60, 0, 10, 40}); b.g(gKATK + 0, 80);
+    b.kit(1, mSNARE, {54, 50, 40, 20, 90, 60, 60, 60}); b.fx(1, tpREV, 40); b.fx(1, tpDIST, 20);
+    b.kit(2, mCLHAT, {78, 12, 92, 90, 25, 64, 0, 0}); b.fx(2, tpPAN, 50); b.speed(2, 1);   // hats at 2x
+    b.kit(3, mFM_HAT, {84, 40, 40, 90, 85, 100, 55, 80}); b.fx(3, tpPAN, 82); b.fx(3, tpVOL, 110);
+    b.kit(4, mSINE, {26, 75, 25, 30, 60, 0, 20, 70}); b.fx(4, tpVOL, 105);
+    b.kit(5, mPH_METAL, {62, 50, 70, 80, 40, 60, 70, 10}); b.fx(5, tpDEL, 60); b.fx(5, tpPAN, 34);
+    b.g(gECHO_TIME, fxDiv(d8T)); b.g(gECHO_FB, 55); b.g(gECHO_MODEL, echoModelValue(emBbd)); b.g(gREV_SIZE, 70);
+    b.row(0, 0, "x.....x...x.....");
+    b.row(0, 1, "........x.......");
+    b.row(0, 2, "x.x.x.x.x.x.xxxx");
+    b.ratch(0, 2, 14, 3); b.ratch(0, 2, 15, 4);
+    b.row(0, 3, "...x.......x....");
+    b.row(0, 4, "x.....x...x.....");
+    b.melody(0, 4, 26, kSnSemi, {0, 0, 3});
+    b.row(0, 5, "............x...");
+    b.settings(0, 16, 50);
+    b.g(gTEMPO, 85);
+}
+static void presetPolymeter(PB& b)
+{
+    b.kit(0, mFM_KICK, {50, 55, 50, 30, 30, 32, 30, 0});
+    b.kit(1, mCLAVE, {80, 20, 50, 80, 40, 0, 10, 0}); b.fx(1, tpPAN, 34); b.fx(1, tpDEL, 40);
+    b.kit(2, mFM_RIM, {72, 20, 60, 60, 20, 30, 15, 20}); b.fx(2, tpPAN, 92);
+    b.kit(3, mPH_MALLET, {62, 45, 65, 40, 70, 55, 30, 0}); b.fx(3, tpDEL, 55); b.fx(3, tpPAN, 50);
+    b.kit(4, mFM_BELL, {70, 35, 50, 20, 55, 70, 40, 70}); b.fx(4, tpPAN, 80); b.fx(4, tpREV, 40);
+    b.kit(5, mSHAKER, {8, 5, 25, 85, 110, 40, 80, 0}); b.fx(5, tpVOL, 70);
+    b.g(gECHO_TIME, fxDiv(d16D)); b.g(gECHO_FB, 60); b.g(gECHO_MODEL, echoModelValue(emMulti)); b.g(gECHO_MOD, 90);
+    b.row(0, 0, "x...x...x...x...");
+    b.row(0, 1, "x..x..x..x..x");   b.b.patterns[0].trackLen[1] = 13;
+    b.row(0, 2, "..x...x..x.");      b.b.patterns[0].trackLen[2] = 11;
+    b.row(0, 3, "x..x.x.x.");        b.b.patterns[0].trackLen[3] = 9;
+    b.melody(0, 3, 62, kMlSemi, {0, 7, 3, 10, 5});
+    b.row(0, 4, "....x..");          b.b.patterns[0].trackLen[4] = 7;
+    b.row(0, 5, "x.xxx");            b.b.patterns[0].trackLen[5] = 5;
+    b.settings(0, 16, 50);
+    b.g(gTEMPO, 118);
+}
+
+// factory preset: expReso = voiced with the 0.11 RESONANCE curve; cat = style (kPresetCats); trimDb = level trim so every
+// preset plays at about the same loudness (-16 LUFS, measured with tests/audit.cpp --fit)
+struct PresetDef { const char* name; const char* desc; void (*build)(PB&); bool expReso = false; int cat = 0; float trimDb = 0.f; };
+enum PresetCat { pcBasics, pcTechno, pcHouse, pcBreaks, pcHipHop, pcElectro, pcPerc, pcExperimental, pcAmbient, kPresetCatCount };
+static const char* const kPresetCats[kPresetCatCount] = {"BASICS", "TECHNO", "HOUSE", "BREAKS", "HIP-HOP", "ELECTRO", "PERCUSSION", "EXPERIMENTAL", "AMBIENT"};
 
 static const PresetDef kPresets[] = {
-    {"Init",               "Factory state: default kit, every parameter at its base, empty sequencer", presetInit},
-    {"Demo Groove",        "The default kit with a basic groove to start from",            presetDefault},
-    {"Electro Funk",       "808-style electro: syncopated kicks, cowbell, sine bass",       presetElectro},
-    {"Detroit Techno",     "Driving 4/4, clap, ride-like FM hats, mallet chord stabs",       presetTechno},
-    {"Dub Techno",         "Deep kick, echoing rims and bell chords, long reverb, hiss",     presetDubTechno},
-    {"Breakbeat",          "Punchy break with ghost snares, compressed and saturated",       presetBreakbeat},
-    {"Drill & Bass",       "172 BPM, 32 steps, snare rolls with rising pitch, plucked bass", presetDrillBass},
-    {"IDM Glitch",         "Odd lengths (13 / 15 steps), FM and physical machines, locks",   presetIdm},
-    {"Industrial",         "Distorted membrane kick, metal hits, crushed noise, gated verb", presetIndustrial},
-    {"Minimal Click",      "Tiny clicks, claves, shaker, sparse mallets",                    presetMinimal},
-    {"Lo-Fi Hip-Hop",      "Swung, bit-reduced drums, plucked bassline, vinyl hiss",         presetLofi},
-    {"Braindance",         "All-FM kit, acid-like sliding sine line, busy hats",             presetBraindance},
-    {"Percussion Ensemble","Marimba, congas, claves, shaker, bells",                         presetPercussion},
-    {"Deep House",         "Classic 4/4, offbeat hats, shaker, mallet chords, sine bass",    presetHouse},
-    {"UK Garage",          "Swung 2-step, rim shots, bouncing sine bass",                    presetGarage},
-    {"Footwork",           "160 BPM, triplet-ish kicks, rolling hats, plucked stabs",        presetFootwork},
-    {"Trap",               "Pitched sine 808 boom, hi-hat rolls, half-time snare",           presetTrap},
-    {"Dembow",             "Reggaeton / dembow groove with toms and shaker",                 presetDembow},
-    {"Jungle",             "168 BPM chopped break feel, sub bass, dubby metal stabs",        presetJungle},
-    {"Polyrhythm Lab",     "Every track has its own length (5 to 16 steps): ever-changing", presetPolyLab},
-    {"Ambient Bells",      "Slow, long track lengths, bells, plucks, washed-out echo",       presetAmbient},
-    {"Mallet Techno",      "Techno with mallets that a slow LFO opens and closes",            presetMalletTechno, true},
-    {"Chaos Breaks",       "172 BPM break; CHAOS repeats only the snares and hats",           presetChaosBreaks, true},
-    {"Speed Lab",          "Hats 2x, shaker 3/2x, cowbell 3/4x, toms 1/2x; ensemble chorus", presetPolySpeed, true},
-    {"Chorus Dub",         "Ensemble chorus on rims and bells, dub tape echo, hall",          presetChorusDub, true},
-    {"Lo-Fi Tape",         "Worn tape drums: crushed hits, drive and a dark top",             presetLofiTape, true},
-    {"Glitch Garage",      "Swung 2-step; CHAOS reverses and stutters the rims and claps",    presetGlitchGarage, true},
+    {"Init",               "Factory state: default kit, every parameter at its base, empty sequencer", presetInit, false, pcBasics, 0.0f},
+    {"Demo Groove",        "The default kit with a basic groove to start from",            presetDefault, false, pcBasics, 7.3f},
+    {"Electro Funk",       "808-style electro: syncopated kicks, cowbell, sine bass",       presetElectro, false, pcElectro, 3.7f},
+    {"Detroit Techno",     "Driving 4/4, clap, ride-like FM hats, mallet chord stabs",       presetTechno, false, pcTechno, 1.6f},
+    {"Dub Techno",         "Deep kick, echoing rims and bell chords, long reverb, hiss",     presetDubTechno, false, pcTechno, 9.8f},
+    {"Breakbeat",          "Punchy break with ghost snares, compressed and saturated",       presetBreakbeat, false, pcBreaks, -4.8f},
+    {"Drill & Bass",       "172 BPM, 32 steps, snare rolls with rising pitch, plucked bass", presetDrillBass, false, pcBreaks, 1.3f},
+    {"IDM Glitch",         "Odd lengths (13 / 15 steps), FM and physical machines, locks",   presetIdm, false, pcExperimental, 2.2f},
+    {"Industrial",         "Distorted membrane kick, metal hits, crushed noise, gated verb", presetIndustrial, false, pcTechno, -7.8f},
+    {"Minimal Click",      "Tiny clicks, claves, shaker, sparse mallets",                    presetMinimal, false, pcTechno, 10.0f},
+    {"Lo-Fi Hip-Hop",      "Swung, bit-reduced drums, plucked bassline, vinyl hiss",         presetLofi, false, pcHipHop, -2.5f},
+    {"Braindance",         "All-FM kit, acid-like sliding sine line, busy hats",             presetBraindance, false, pcElectro, 3.8f},
+    {"Percussion Ensemble","Marimba, congas, claves, shaker, bells",                         presetPercussion, false, pcPerc, 5.3f},
+    {"Deep House",         "Classic 4/4, offbeat hats, shaker, mallet chords, sine bass",    presetHouse, false, pcHouse, 4.8f},
+    {"UK Garage",          "Swung 2-step, rim shots, bouncing sine bass",                    presetGarage, false, pcHouse, 6.6f},
+    {"Footwork",           "160 BPM, triplet-ish kicks, rolling hats, plucked stabs",        presetFootwork, false, pcBreaks, 0.7f},
+    {"Trap",               "Pitched sine 808 boom, hi-hat rolls, half-time snare",           presetTrap, false, pcHipHop, -0.7f},
+    {"Dembow",             "Reggaeton / dembow groove with toms and shaker",                 presetDembow, false, pcPerc, 5.7f},
+    {"Jungle",             "168 BPM chopped break feel, sub bass, dubby metal stabs",        presetJungle, false, pcBreaks, 1.3f},
+    {"Polyrhythm Lab",     "Every track has its own length (5 to 16 steps): ever-changing", presetPolyLab, false, pcExperimental, 4.7f},
+    {"Ambient Bells",      "Slow, long track lengths, bells, plucks, washed-out echo",       presetAmbient, false, pcAmbient, 1.0f},
+    {"Mallet Techno",      "Techno with mallets that a slow LFO opens and closes",            presetMalletTechno, true, pcTechno, 2.0f},
+    {"Chaos Breaks",       "172 BPM break; CHAOS repeats only the snares and hats",           presetChaosBreaks, true, pcBreaks, -3.6f},
+    {"Speed Lab",          "Hats 2x, shaker 3/2x, cowbell 3/4x, toms 1/2x; ensemble chorus", presetPolySpeed, true, pcExperimental, 2.4f},
+    {"Chorus Dub",         "Ensemble chorus on rims and bells, dub tape echo, hall",          presetChorusDub, true, pcAmbient, 6.4f},
+    {"Lo-Fi Tape",         "Worn tape drums: crushed hits, drive and a dark top",             presetLofiTape, true, pcHipHop, -2.0f},
+    {"Glitch Garage",      "Swung 2-step; CHAOS reverses and stutters the rims and claps",    presetGlitchGarage, true, pcHouse, 6.2f},
+    {"Peak Time Techno",   "132 BPM, punchy kick (ATTACK), rumble in a DIFFUSE echo, ride and metal", presetPeakTechno, true, pcTechno, -4.5f},
+    {"Chicago House",      "Jacking 4/4 with cowbell, rim shuffle, open hats and a sine bass",  presetChicagoHouse, true, pcHouse, 5.3f},
+    {"Afro House",         "Congas, 3-2 clave, shaker at 3/2x, bells in ensemble chorus",       presetAfroHouse, true, pcPerc, 4.4f},
+    {"Liquid DnB",         "174 BPM, soft kick, ghost snares, ride, MULTI-TAP echo with DUCK",  presetLiquidDnb, true, pcBreaks, 2.9f},
+    {"Boom Bap",           "90 BPM dusty drums, plucked stab, TAPE echo with DRIVE",            presetBoomBap, true, pcHipHop, -2.6f},
+    {"Electro Bass",       "808 bass line, rolling hats, cowbell in PING-PONG echo",            presetElectroBass, true, pcElectro, -1.6f},
+    {"Reverse Dub",        "Slow dub: rims and bells into a REVERSE echo, long reverb",         presetReverseDub, true, pcAmbient, 6.1f},
+    {"Halftime",           "85 BPM halftime: hats at 2x with rolls, deep sine bass",            presetHalftime, true, pcHipHop, 2.9f},
+    {"Polymeter",          "Tracks of 16, 13, 11, 9, 7 and 5 steps through a MULTI-TAP echo",   presetPolymeter, true, pcExperimental, 7.3f},
 };
 static constexpr int kNumPresets = (int)(sizeof(kPresets) / sizeof(kPresets[0]));
 
 // Build preset `i` into a full parameter array + bank.
+inline void convertResoV010(float* values, Bank& bank);
+// presets whose tracks are all panned to the centre: the percussion (hats, shakers, rims, toms, bells...) is spread
+// a little left and right, the kicks, snares, claps and basses stay in the middle
+inline void widenIfMono(float* values, const Bank& bank)
+{
+    bool trigs = false;
+    for (const auto& pat : bank.patterns) for (int t = 0; t < kTracks && !trigs; ++t) for (int st = 0; st < kSteps; ++st) if (pat.flags[t][st]) { trigs = true; break; }
+    if (!trigs) return;   // Init: base parameters
+    for (int t = 0; t < kTracks; ++t) if (bank.machine[t] != mOFF && std::fabs(values[tpIndex(t, tpPAN)] - 64.f) > 0.5f) return;
+    static const int spread[] = {-18, 16, -24, 22, -12, 26, -20, 14};
+    int k = 0;
+    for (int t = 0; t < kTracks; ++t) {
+        const int m = bank.machine[t];
+        const bool perc = m == mCLHAT || m == mOPHAT || m == mCYMBAL || m == mSHAKER || m == mCLAVE || m == mCOWBELL || m == mRIM ||
+                          m == mTOM || m == mFM_HAT || m == mFM_CYMBAL || m == mFM_BELL || m == mFM_RIM || m == mFM_TOM ||
+                          m == mPH_METAL || m == mPH_MALLET;
+        if (perc) values[tpIndex(t, tpPAN)] = 64.f + (float)spread[k++ % 8];
+    }
+}
+// level trim in dB: master VOLUME first (gain = 1.2 (v / 127)^2), what it cannot give goes to the track levels
+inline void applyLevelTrim(float* values, float db)
+{
+    if (std::fabs(db) < 0.05f) return;
+    float& mv = values[kGlobalBase + gVOLUME];
+    const float gain = 1.2f * (mv / 127.f) * (mv / 127.f) * std::pow(10.f, db / 20.f);
+    float v = 127.f * std::sqrt(gain / 1.2f);
+    if (v <= 127.f) { mv = std::round(v); return; }
+    mv = 127.f;
+    const float extra = std::sqrt(gain / 1.2f);   // track level scale (track gain = (v / 127)^2)
+    for (int t = 0; t < kTracks; ++t) { float& tv = values[tpIndex(t, tpVOL)]; tv = std::round(std::min(127.f, tv * extra)); }
+}
+
 inline void buildPreset(int i, float* values, Bank& bank)
 {
     PB b(values, bank);
     b.g(gTEMPO, 120);
     kPresets[i].build(b);
-    if (kPresets[i].expReso) return;
-    // the presets were voiced with the linear RESONANCE curve used before 0.11: convert their values (knobs and
-    // locks) to the exponential curve (resoQ) so they keep the same resonance
+    if (!kPresets[i].expReso) convertResoV010(values, bank);
+    widenIfMono(values, bank);
+    applyLevelTrim(values, kPresets[i].trimDb);
+}
+// the presets voiced with the linear RESONANCE curve used before 0.11: their values (knobs and locks) converted to the
+// exponential curve (resoQ) so they keep the same resonance
+inline void convertResoV010(float* values, Bank& bank)
+{
     auto conv = [](float v, float qMin, float span) {
         const float q = qMin + clampf(v, 0.f, 127.f) / 127.f * span;
         const float e = std::log(q / qMin) / std::log((qMin + span) / qMin);
         return std::round(127.f * std::pow(clampf(e, 0.f, 1.f), 0.8f));
     };
-    for (int t = 0; t < kTracks; ++t) values[t * kTrackParams + tpRESO] = conv(values[t * kTrackParams + tpRESO], 0.5f, 12.f);
+    for (int t = 0; t < kTracks; ++t) values[tpIndex(t, tpRESO)] = conv(values[tpIndex(t, tpRESO)], 0.5f, 12.f);
     values[kGlobalBase + gMF_RESO] = conv(values[kGlobalBase + gMF_RESO], 0.707f, 9.f);
     for (auto& pat : bank.patterns)
         for (int t = 0; t < kTracks; ++t)
