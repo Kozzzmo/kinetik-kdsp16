@@ -18,7 +18,7 @@ Sister product: **Kinetik KMSP-6** (mono synth), repository `Kozzzmo/kinetik-kms
 | `Engine.hpp` | sequencer + voices + master FX, 4 output buses |
 | `KinetikPlugin.cpp` | DPF plugin glue: parameters, states, MIDI (notes 36–51 = tracks, or chromatic per track MIDI channel) |
 | `KinetikUI.cpp` | the whole UI (1180×720 canvas; pages SYNTH FILTER FX MIX LFO 1 LFO 2 TRACK, `pageParam` lists the knobs of each; the upper LCD draws a graphic per page via `drawPageGraphic` — the SYNTH page renders one hit with a private `Voice`; overlays: machine picker, presets, help, skins, save, LFO destination menu `ovDest`) |
-| `Presets.hpp` | 21 factory presets built in code (`PB` builder) |
+| `Presets.hpp` | 36 factory presets built in code (`PB` builder; categories, level trims) |
 | `Random.hpp`, `Help.hpp`, `Skins.hpp`, `Fonts.hpp`, `Dsp.hpp` | randomizers, help texts, 4 skins, embedded fonts, DSP helpers |
 
 User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Application Support/Kinetik/KDSP-16/Presets`
@@ -268,3 +268,14 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
   nothing). `Engine::process` = `processBlock` (no `applyMorph`). `tests/morph.cpp` now checks that scenes are ignored /
   not written, CHAOS sends and the old scene-line parser. The 0.12 / 0.7 morph notes above are history.
 - NEON: active step LEDs red `Color(236, 36, 50)`, accents `Color(255, 140, 120)` (drawSequencer, `th->logo == lgNeon`).
+
+## Added in KDSP-16 0.16 / KMSP-6 0.12 (both plug-ins)
+
+- Presets: `PresetDef::cat` (`PresetCat`, `kPresetCats`, browser chips `presetCatChip` / `presetCat`, list grouped by
+  category, search matches the category) and `trimDb` (`applyLevelTrim`: master VOLUME first, overflow on track VOL),
+  fitted to about -15 LUFS with `tests/audit.cpp` (shared; `--fit <LUFS>` prints trims, `AUDIT_TRACKS=1` per-track levels).
+  KDSP-16 also `widenIfMono`.
+- LFO-moved knobs: `drawKnob(..., mod01, modCol)` draws the arc / ticks to the modulated value (`lfoLive`: value +
+  out x depth / 2, as the engine) in the LFO colour, pointer on the set value; `drawLfoBadge`. Colours: `lfoPal[3]`
+  (index into `lfoPalColor`, 8 colours, no pink; defaults green #7dff5a / yellow / white, owner's choice; WHITE = ink on RISO), picked with the COLOR chip of the LFO page
+  (`lfoColChip`, `lfoSwatch`, `lfoColorClick`), saved per user in the view file ("skin zoom c1 c2 c3"), not in projects.
