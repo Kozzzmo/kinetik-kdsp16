@@ -3,9 +3,11 @@
 #include "Bank.hpp"
 #include "Voice.hpp"
 #include "MasterFx.hpp"
+#include "Click.hpp"
 #include <vector>
 #include <algorithm>
 #include <climits>
+#include <atomic>
 #if defined(__SSE__) || defined(_M_X64) || defined(__x86_64__)
 #include <xmmintrin.h>
 #endif
@@ -24,6 +26,9 @@ inline void knDenormalsOff()
 namespace kn {
 
 struct NoteEvent { uint32_t frame; int track; float velocity; int semis = 0; };
+
+// a trig played live (MIDI) while REC is armed: audio thread -> UI thread, which writes it into the pattern
+struct RecEvent { int pattern, track, step; bool accent; };
 
 struct Transport {
     bool hostValid = false;   // host gave a musical position
@@ -60,6 +65,7 @@ struct Track {
     uint32_t ledTimer = 0, idle = 0;
     // conditional trigs
     int64_t decK = INT64_MIN; bool decOk = true; bool pre = true;
+    int64_t recSkipK = INT64_MIN;     // a just-recorded live hit must not be replayed by the sequencer right after
     std::vector<float> buf;
 
     void init(float s)
@@ -82,6 +88,27 @@ public:
     int outStep = -1, outPattern = 0; // outStep: absolute step counter modulo 2^20 (-1 = stopped)
     uint32_t outLeds = 0;
     uint32_t trigCount[kTracks] = {}; // diagnostics (tests)
+    bool recording = false;           // REC armed in the UI: MIDI notes write trigs
+    Click click;                      // metronome while recording
+
+    // live-recorded trigs (audio thread -> UI thread)
+    static constexpr int kRecQ = 256;
+    RecEvent recQ[kRecQ];
+    std::atomic<int> recW{0}, recR{0};
+    bool popRec(RecEvent& e)
+    {
+        const int r = recR.load(std::memory_order_relaxed);
+        if (r == recW.load(std::memory_order_acquire)) return false;
+        e = recQ[r]; recR.store((r + 1) % kRecQ, std::memory_order_release);
+        return true;
+    }
+    void pushRec(const RecEvent& e)
+    {
+        const int w = recW.load(std::memory_order_relaxed), nw = (w + 1) % kRecQ;
+        if (nw == recR.load(std::memory_order_acquire)) return;
+        recQ[w] = e;
+        recW.store(nw, std::memory_order_release);
+    }
 
     Engine()
     {
@@ -99,6 +126,7 @@ public:
         for (auto& tr : tracks) tr.init(sr);
         for (int t = 0; t < kTracks; ++t) { tracks[t].voice.machine = -1; tracks[t].voice.setMachine(bank.machine[t]); }
         fx.init(sr);
+        click.init(sr);
         sendDL.assign(64, 0); sendDR.assign(64, 0); sendRL.assign(64, 0); sendRR.assign(64, 0); sendCL.assign(64, 0); sendCR.assign(64, 0); sendGL.assign(64, 0); sendGR.assign(64, 0);
         for (int b = 0; b < kOutBuses; ++b) { busL[b].assign(64, 0); busR[b].assign(64, 0); }
         events.reserve(4096);
@@ -108,7 +136,7 @@ public:
     void reset()
     {
         for (auto& tr : tracks) { tr.voice.active = false; tr.choking = false; tr.chokeEnv = 1.f; }
-        fx.reset();
+        fx.reset(); click.reset();
         wasPlaying = false; internalBeat = 0; prevPlayParam = false; usingInternal = false;
     }
 
@@ -195,6 +223,20 @@ public:
             auto patFor = [&](int64_t k) -> const Pattern& {
                 return (want != curPattern && k >= nextSwitch) ? bank.patterns[want] : bank.patterns[curPattern];
             };
+            // live recording: each MIDI note writes a trig on the nearest step of its track (the UI applies it)
+            if (recording)
+                for (uint32_t i = 0; i < nNotes; ++i) {
+                    const int t = notes[i].track;
+                    if (t < 0 || t >= kTracks) continue;
+                    const double mult = trackSpeedMult(bank.kit[t][kfSpeed]), sbt = sb / mult;
+                    const double beat = b0 + std::min(notes[i].frame, frames - 1) * beatsPerFrame;
+                    const int64_t k = (int64_t)std::llround(beat / sbt);
+                    if (k < 0) continue;
+                    const int64_t kg = (int64_t)std::floor(k / mult + 1e-9);
+                    const int p = (want != curPattern && kg >= nextSwitch) ? want : curPattern;
+                    pushRec({p, t, bank.patterns[p].trackStep(t, k), notes[i].velocity > 1.05f});
+                    tracks[t].recSkipK = k;
+                }
             // boundaries (pattern change + playhead)
             for (int64_t k = std::max<int64_t>(kFirst, lastBoundaryK + 1); k <= kLast; ++k) {
                 const double tb = k * sb;
@@ -213,6 +255,7 @@ public:
                     const Pattern& P = patFor((int64_t)std::floor(k / mult + 1e-9));
                     const int s = P.trackStep(t, k);
                     if (!(P.flags[t][s] & sfTrig)) continue;
+                    if (k == tracks[t].recSkipK) continue;     // already played live
                     const int n = std::max<int>(1, P.ratch[t][s]);
                     const double base = k * sbt + ((k & 1) ? (P.swing / 100.0 * 2.0 - 1.0) * sbt : 0.0) + P.micro[t][s] / 24.0 * sbt;
                     for (int j = 0; j < n; ++j) {
@@ -246,6 +289,9 @@ public:
             renderSegment(seg, end - pos);
             pos = end;
         }
+
+        // metronome while recording (main output, after the master effects)
+        click.process(outs[0], outs[1], frames, b0, beatsPerFrame, recording && playing);
 
         uint32_t leds = 0;
         for (int t = 0; t < kTracks; ++t) {

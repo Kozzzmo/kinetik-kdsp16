@@ -16,7 +16,7 @@ Sister product: **Kinetik KMSP-6** (mono synth), repository `Kozzzmo/kinetik-kms
 | `FileDrop.hpp/.cpp`, `FileDropMac.mm` | files dropped on the window (Windows OLE `IDropTarget`, macOS dragging methods added to the DPF view at run time; Linux: none) |
 | `third_party/dr_libs/dr_wav.h` | WAV / AIFF decoder (public domain / MIT-0), UI side only |
 | `Engine.hpp` | sequencer + voices + master FX, 4 output buses |
-| `KinetikPlugin.cpp` | DPF plugin glue: parameters, states, MIDI (notes 36–51 = tracks, or chromatic per track MIDI channel) |
+| `KinetikPlugin.cpp` | DPF plugin glue: parameters, states, MIDI (notes 36–51 = tracks, or chromatic per track MIDI channel), `DrumDirect` (live trig recording, click) |
 | `KinetikUI.cpp` | the whole UI (1180×720 canvas; pages SYNTH FILTER FX MIX LFO 1 LFO 2 TRACK, `pageParam` lists the knobs of each; the upper LCD draws a graphic per page via `drawPageGraphic` — the SYNTH page renders one hit with a private `Voice`; overlays: machine picker, presets, help, skins, save, LFO destination menu `ovDest`) |
 | `Presets.hpp` | 36 factory presets built in code (`PB` builder; categories, level trims) |
 | `Random.hpp`, `Help.hpp`, `Skins.hpp`, `Fonts.hpp`, `Dsp.hpp` | randomizers, help texts, 4 skins, embedded fonts, DSP helpers |
@@ -279,3 +279,25 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
   out x depth / 2, as the engine) in the LFO colour, pointer on the set value; `drawLfoBadge`. Colours: `lfoPal[3]`
   (index into `lfoPalColor`, 8 colours, no pink; defaults green #7dff5a / yellow / white, owner's choice; WHITE = ink on RISO), picked with the COLOR chip of the LFO page
   (`lfoColChip`, `lfoSwatch`, `lfoColorClick`), saved per user in the view file ("skin zoom c1 c2 c3"), not in projects.
+
+## Added in KDSP-16 0.17 / KMSP-6 0.13 (both plug-ins)
+
+- ALL (owner's design: Alt + knob, relative, plus a latch button): `allLatch` / `altHeld` (from mouse and motion `ev.mod`) /
+  `allNow` (fixed when a gesture starts, also on scroll); `knobTarget(t, pi)` (ALL: every other track, synth knobs pi < 8
+  only with the same machine; KMSP also the right-click group) -> `knobOthers(pi)`; sends `sendOthers(k)` (KDSP kick
+  ATTACK: same machine). `multiBegin(sel, others)` records the bases + editParameter, `multiFollow(v)` moves them by the
+  same delta, `multiEnd()`. Step locks / REC never use it. UI: `allBtn()` at the end of the page tab row (tabs narrowed),
+  "ALL" badge on the knobs and accent frames on the track buttons while shown (`allShown()`).
+- Metronome: `Click.hpp` (shared) in the Engine, added to the main bus after the master FX while `recording && playing`;
+  1760 Hz on bar starts (4/4 from the song position), 1320 Hz on beats. `click.enabled` from the UI (`setClick` direct
+  call or cmd `click 0/1`, sent at the first `uiIdle`); CLICK button under REC (`clickBtn()`, REC is 30 px high now),
+  saved per user as the 6th value of the view file.
+- NEON: lit track LEDs `Color(125, 255, 90)` (`ledOn` in drawTracks).
+- KDSP-16 MIDI trig recording: `DISTRHO_PLUGIN_WANT_DIRECT_ACCESS` + `DrumShared.hpp` (`DrumDirect`: popRecorded / setRecording /
+  setClick; fallback cmds `rec 0/1`, `click 0/1`). Engine: MIDI notes while `recording` and playing -> `RecEvent` queue
+  (nearest step of the track's own grid, accent if velocity > 105) and `Track::recSkipK` so the new trig is not replayed
+  right after the live hit; the UI's `pollRecorded()` (uiIdle) writes `f` commands (undoable). UI-auditions are not
+  recorded (right-click on a track still records through `recordTrig`). Test: `tests/liverec.cpp`.
+- Personal kits: the owner's 808 / 909 / R-8 MkII sample packs live only on the owner's PC (user presets "01 909 Kit",
+  "02 808 Kit", "03 R-8 MkII Kit" with embedded samples, and Documents/Kinetik/KDSP-16 Samples). They are commercial packs:
+  never put them in the repository (public) or in factory presets / installers.

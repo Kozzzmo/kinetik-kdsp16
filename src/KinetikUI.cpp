@@ -1,5 +1,6 @@
 // Kinetik KDSP-16 — user interface (NanoVG)
 #include "DistrhoUI.hpp"
+#include "DistrhoPlugin.hpp"
 #include "Bank.hpp"
 #include "Dsp.hpp"
 #include "Presets.hpp"
@@ -15,6 +16,7 @@
 #include "FileDrop.hpp"
 #include "MidiFile.hpp"
 #include "FxPresets.hpp"
+#include "DrumShared.hpp"
 #define DR_WAV_IMPLEMENTATION
 #include "third_party/dr_libs/dr_wav.h"
 #include <cstdlib>
@@ -78,17 +80,19 @@ public:
         fonts[fnBlack] = createFontFromMemory("kn-black", kFontBlack, sizeof(kFontBlack), false);
         fonts[fnLogo] = createFontFromMemory("kn-logo", kFontUnbounded, sizeof(kFontUnbounded), false);
         int sk, zm;
-        readDefaultView(sk, zm, lfoPal);
+        readDefaultView(sk, zm, lfoPal, clickOn);
         setSkin(sk, false);
         if (zm != 100) setSize((uint)std::lround(W * baseScale() * zm / 100.0), (uint)std::lround(H * baseScale() * zm / 100.0));
         viewDirty = false;
         updater.reset(new upd::Checker("KDSP-16", KN_VERSION, "https://github.com/Kozzzmo/kinetik-kdsp16/releases/latest/download/update.txt"));
         updater->check(false);
+        if (void* p = getPluginInstancePointer()) direct = dynamic_cast<DrumDirect*>(static_cast<Plugin*>(p));
+        if (direct) direct->setRecording(false);
         // files dropped on the window: samples (SAMPLE machine) or a licence file
         dropToken = fileDropAttach(getWindow().getNativeWindowHandle(),
                                    [this](const std::string& path, double fx, double fy) { fileDropped(path, fx * W, fy * H); });
     }
-    ~KinetikUI() override { fileDropDetach(dropToken); }
+    ~KinetikUI() override { fileDropDetach(dropToken); if (direct) direct->setRecording(false); }
 
     // ------------------------------------------------------------------ skins
     static std::string viewFile()
@@ -105,24 +109,25 @@ public:
        #endif
        #endif
     }
-    static void readDefaultView(int& skinOut, int& zoomOut, int* pal)
+    static void readDefaultView(int& skinOut, int& zoomOut, int* pal, bool& click)
     {
         skinOut = kDefaultSkin; zoomOut = 100;
         const std::string f = viewFile();
         if (f.empty()) return;
         if (FILE* fp = fs::open(f, "r")) {
-            int a = 0, b = 100, c[3] = {4, 5, 7};
-            const int n = std::fscanf(fp, "%d %d %d %d %d", &a, &b, &c[0], &c[1], &c[2]); std::fclose(fp);
+            int a = 0, b = 100, c[3] = {4, 5, 7}, k = 1;
+            const int n = std::fscanf(fp, "%d %d %d %d %d %d", &a, &b, &c[0], &c[1], &c[2], &k); std::fclose(fp);
+            if (n >= 6) click = k != 0;   // metronome while recording (0.17 / 0.13)
             if (n >= 1 && a >= 0 && a < kNumThemes) skinOut = a;
             if (n >= 2 && b >= 60 && b <= 300) zoomOut = b;
             for (int l = 0; l < 3; ++l) if (n >= 3 + l && c[l] >= 0 && c[l] < kLfoPal) pal[l] = c[l];   // LFO colours (0.16 / 0.12)
         }
     }
-    static void writeDefaultView(int s, int z, const int* pal)
+    static void writeDefaultView(int s, int z, const int* pal, bool click)
     {
         const std::string f = viewFile();
         if (f.empty()) return;
-        if (FILE* fp = fs::open(f, "w")) { std::fprintf(fp, "%d %d %d %d %d\n", s, z, pal[0], pal[1], pal[2]); std::fclose(fp); }
+        if (FILE* fp = fs::open(f, "w")) { std::fprintf(fp, "%d %d %d %d %d %d\n", s, z, pal[0], pal[1], pal[2], click ? 1 : 0); std::fclose(fp); }
     }
     void setSkin(int i, bool save)
     {
@@ -377,7 +382,7 @@ protected:
     R libBtn() const { return {496.f, 156.f, 94.f, 24.f}; }
     bool showSmpLoad() const { return page == pgSynth && lockStep < 0 && machineOf(selTrack) == mSAMPLE; }
     R lockClear() const { return {596.f, 156.f, 94.f, 24.f}; }
-    R pageTab(int i) const { return {20.f + i * 97.4f, 304.f, 94.f, 28.f}; }
+    R pageTab(int i) const { return {20.f + i * 88.f, 304.f, 85.f, 28.f}; }   // ALL button at the end of the row
     // track knobs: 8, or 9 on the SYNTH page of a kick (9th = ATTACK, a global host parameter per track)
     bool kickAttackSlot() const { const int m = machineOf(selTrack); return page == pgSynth && (m == mKICK || m == mFM_KICK || m == mPH_KICK); }
     int slots() const { return kickAttackSlot() ? 9 : 8; }
@@ -421,7 +426,7 @@ protected:
     R skinRow(int i) const { return {264.f + (i % 2) * 330.f, 150.f + (i / 2) * 148.f, 316.f, 136.f}; }
     R zoomBtn(int i) const { return {264.f + i * 109.f, 486.f, 101.f, 36.f}; }
     R gripR() const { return {W - 22.f, H - 22.f, 22.f, 22.f}; }
-    R recBtn() const { return {20.f, 634.f, 96.f, 40.f}; }
+    R recBtn() const { return {20.f, 628.f, 96.f, 30.f}; }
     R rndGroup() const { return {124.f, 628.f, 584.f, 52.f}; }
     R rndBtn(int i) const { return {250.f + i * 91.f, 634.f, 87.f, 40.f}; }
     R undoBtn() const { return {712.f, 634.f, 86.f, 40.f}; }
@@ -736,13 +741,15 @@ protected:
             const Color fg = sel ? th->selText : (off ? th->faint : th->text);
             if (sel) box(r, th->selFill);
             else { box(r, th->btnFill); frame(r, off ? Color(th->btnEdge, th->bg, 0.5f) : th->btnEdge); }
+            if (allShown() && !off) frame(r, th->logo == lgRiso ? th->text : th->accent, -1.f, 2.f);   // ALL: every track follows
             char b[8]; std::snprintf(b, sizeof(b), "%02d", t + 1);
             number(r.x + 7, r.y + 17, b, 17.f, fg, ALIGN_LEFT | ALIGN_MIDDLE);
             const bool lit = (leds >> t) & 1;
             beginPath(); circle(r.x + r.w - 11, r.y + 13, 4);
-            fillColor(lit ? (sel && th->selFill.red > 0.5f && th->accent.red < 0.2f ? th->selText : th->accent)
+            const Color ledOn = th->logo == lgNeon ? Color(125, 255, 90) : (sel && th->selFill.red > 0.5f && th->accent.red < 0.2f ? th->selText : th->accent);   // NEON: green LEDs
+            fillColor(lit ? ledOn
                           : Color(fg, Color(0, 0, 0, 0.f), 0.25f)); fill();
-            if (lit && th->glow) { beginPath(); circle(r.x + r.w - 11, r.y + 13, 9); fillPaint(radialGradient(r.x + r.w - 11, r.y + 13, 2, 9, Color(th->accent, Color(0, 0, 0, 0.f), 0.5f), Color(0, 0, 0, 0.f))); fill(); }
+            if (lit && th->glow) { beginPath(); circle(r.x + r.w - 11, r.y + 13, 9); fillPaint(radialGradient(r.x + r.w - 11, r.y + 13, 2, 9, Color(ledOn, Color(0, 0, 0, 0.f), 0.5f), Color(0, 0, 0, 0.f))); fill(); }
             label(r.x + 7, r.y + 36, kMachineDefs[machineOf(t)].name, 10.f, fg, ALIGN_LEFT | ALIGN_MIDDLE);
             const bool muted = bank->mute[t] != 0;
             const R mh = muteBtn(t);
@@ -1268,7 +1275,7 @@ protected:
         frame(machNext(), th->lcdText); label(machNext().cx(), machNext().cy() + 1, "\xE2\x96\xB6", 10.f, th->lcdText, ALIGN_CENTER | ALIGN_MIDDLE, fnSans);
         box(machName(), th->nameFill); label(machName().cx(), machName().cy() + 1, kMachineDefs[m].name, 13.f, th->nameText);
         frame(helpBtn(), th->lcdDim); label(helpBtn().cx(), helpBtn().cy() + 1, "?", 13.f, th->lcdText);
-        label(378, 169, kPageNames[page], 11.5f, th->lcdDim, ALIGN_LEFT | ALIGN_MIDDLE);
+        if (!(showSmpLoad() && lockStep < 0 && smpMsgTicks <= 0)) label(378, 169, kPageNames[page], 11.5f, th->lcdDim, ALIGN_LEFT | ALIGN_MIDDLE);   // hidden behind "or drop a file"
 
         if (lockStep >= 0) {
             const int nsel = selCount();
@@ -1295,6 +1302,7 @@ protected:
         drawPageGraphic({30.f, 190.f, 660.f, 100.f});
 
         for (int i = 0; i < kPages; ++i) button(pageTab(i), kPageNames[i], page == i, 11.5f);
+        button(allBtn(), "ALL", allShown(), 11.5f);
 
         for (int k = 0; k < slots(); ++k) {
             const int pi = pageParam(page, k);
@@ -1307,6 +1315,7 @@ protected:
                 }
                 drawKnob(knob(k), cv / 127.f, sendG(k) == gCHO_SEND ? "CHORUS" : (sendG(k) == gKATK ? "ATTACK" : "CHAOS"), vt, false,
                          drag == dkSend && dragIndex == k, true);
+                if (allShown()) drawAllBadge(knob(k));
                 continue;
             }
             if (euclidSlot(k)) {
@@ -1335,6 +1344,7 @@ protected:
                      drag == dkTrackKnob && dragIndex == k, true, nh > 0 ? lfoLive(v, hits, nh) / 127.f : -1.f,
                      nh > 0 ? lfoInk(hits[0].l) : Color());
             if (nh > 0) drawLfoBadge(knob(k), hits, nh);
+            if (allShown() && lockStep < 0) drawAllBadge(knob(k));
         }
     }
 
@@ -1487,6 +1497,11 @@ protected:
         } else {
             box(rb, th->btnFill); frame(rb, th->btnEdge, -1.f, 1.5f);
             iconLabel(rb.cx(), rb.cy() + 1, icRec, "REC", 13.f, th->logo == lgRiso ? th->text : th->accent);
+        }
+        {   // metronome on / off (heard while REC records)
+            const R cb = clickBtn();
+            if (clickOn) box(cb, Color(th->accent, th->btnFill, 0.55f)); else { box(cb, th->btnFill); frame(cb, th->btnEdge, -1.f, 1.f); }
+            label(cb.cx(), cb.cy() + 1, clickOn ? "CLICK ON" : "CLICK OFF", 9.f, clickOn ? th->text : th->dim, ALIGN_CENTER | ALIGN_MIDDLE);
         }
         const R grp = rndGroup();   // ends before the UNDO button
         box(grp, th->inner);
@@ -1977,7 +1992,7 @@ protected:
     {
         char b[32]; std::snprintf(b, sizeof(b), "%d %d", skin, zoomPercent());
         setState("skin", b);      // saved with the project
-        writeDefaultView(skin, zoomPercent(), lfoPal); // and used by new instances
+        writeDefaultView(skin, zoomPercent(), lfoPal, clickOn); // and used by new instances
         viewDirty = false;
     }
     void onResize(const ResizeEvent& ev) override
@@ -2378,6 +2393,8 @@ protected:
 
     void uiIdle() override
     {
+        if (!clickSent) { clickSent = true; sendClick(); }
+        pollRecorded();
         if (ringsShown && overlay == ovNone && nowSec() - lastRingPaint > 0.033) { lastRingPaint = nowSec(); ringsShown = false; repaint(); }
         if (!tipShown && !tipNone && drag == dkNone && overlay == ovNone && hovX >= 0.f && nowSec() - hovSince > 0.8 && nowSec() > tipBlockUntil) {
             tipText = tipAt(hovX, hovY);
@@ -2754,6 +2771,7 @@ protected:
             if (selLockDiffers(pi, iv)) writeLock(pi, iv);
         } else {
             setParam(selTrack * kTrackParams + pi, v);
+            if (!mIdx.empty()) multiFollow(v);
         }
         repaint();
     }
@@ -2859,7 +2877,9 @@ protected:
         if (shiftL().in(x, y)) return "Move the steps of this track one step earlier.";
         if (shiftR().in(x, y)) return "Move the steps of this track one step later.";
         if (fillBtn().in(x, y)) return "Hold the FILL condition on: steps set to FILL play.";
-        if (recBtn().in(x, y)) return "REC: knob moves while playing are recorded as parameter locks.";
+        if (recBtn().in(x, y)) return "REC: while playing, knob moves are recorded as parameter locks, and the pads you play on a MIDI keyboard (or right-click a track) as trigs.";
+        if (clickBtn().in(x, y)) return "CLICK: a metronome on every beat while REC records (main output). Click to turn it on or off.";
+        if (allBtn().in(x, y)) return "ALL: knobs move every track at once, each keeping its own offset (or hold Alt / Option while turning). Synth knobs: tracks with the same machine only.";
         { static const char* rt[5] = {"New random sound for this track", "New random sounds on every track (machines and steps unchanged)", "New random steps for this track", "New random pattern on every track", "Random kit, effects and pattern"}; for (int i = 0; i < 5; ++i) if (rndBtn(i).in(x, y)) return std::string(rt[i]) + " (undo restores).";  }
         for (int t = 0; t < kTracks; ++t) {
             if (soloBtn(t).in(x, y)) return "Solo: only the soloed tracks play.";
@@ -2891,19 +2911,24 @@ protected:
         const float x = ev.pos.getX() / sx, y = ev.pos.getY() / sx;
         if (tipShown) { tipShown = false; repaint(); }
         tipBlockUntil = nowSec() + 1.0;   // no tooltip right after a click
+        altHeld = (ev.mod & kModifierAlt) != 0;
+        if (ev.press) allNow = allLatch || altHeld;   // ALL for the gesture that starts here
         if (!ev.press) {
             if (drag == dkTrackKnob && std::fabs(y - dragY) < 3.f && (page == pgLfo1 || page == pgLfo2) && (dragIndex == 4 || dragIndex == 5)) {
                 editParameter(selTrack * kTrackParams + pageParam(page, dragIndex), false);
+                multiEnd();
                 drag = dkNone; openDestMenu(page - pgLfo1);    // a click (no drag) on DEST / TARGET opens the list
                 return true;
             }
             if (drag == dkTrackKnob && lockStep < 0 && !recording()) editParameter(selTrack * kTrackParams + pageParam(page, dragIndex), false);
+            multiEnd();
             recDirty = false;
             if (drag == dkMasterKnob) editParameter(kGlobalBase + masterParam(mpage, dragIndex), false);
             if (drag == dkTempo) editParameter(kGlobalBase + gTEMPO, false);
             if (drag == dkSwing || drag == dkAccent) sendPatternSettings();
             if (drag == (DragKind)dkResize) saveView();
             if (drag == dkSend && sendG(dragIndex) >= 0) editParameter(kGlobalBase + sendG(dragIndex) + selTrack, false);
+            if (drag == dkSend) multiEnd();
             if (drag == dkGlHold && !glLatch) glHoldSet(false);
             if (drag != dkNone) { drag = dkNone; repaint(); }
             return true;
@@ -2968,7 +2993,8 @@ protected:
                 repaint(); return true;
             }
         }
-        if (recBtn().in(x, y)) { rec = !rec; repaint(); return true; }
+        if (recBtn().in(x, y)) { setRec(!rec); repaint(); return true; }
+        if (clickBtn().in(x, y)) { clickOn = !clickOn; sendClick(); saveView(); repaint(); return true; }
         for (int i = 0; i < 5; ++i) if (rndBtn(i).in(x, y)) { static const int what[5] = {0, 4, 1, 2, 3}; randomize(what[i]); return true; }
         if (undoBtn().in(x, y)) { if (right) redo(); else undo(); return true; }   // right-click = redo
         if (presetBtn().in(x, y)) { openPresets(); return true; }
@@ -2985,6 +3011,7 @@ protected:
             repaint(); return true;
         }
         for (int i = 0; i < kPages; ++i) if (pageTab(i).in(x, y)) { page = i; repaint(); return true; }
+        if (allBtn().in(x, y)) { allLatch = !allLatch; repaint(); return true; }
         for (int i = 0; i < kMPages; ++i)
             if (mTab(i).in(x, y)) {
                 if (mpage == i && fxTabOf(i) >= 0) overlay = ovFx;   // click the active tab: its presets
@@ -2995,9 +3022,14 @@ protected:
         for (int k = 0; k < slots(); ++k)
             if (sendG(k) >= 0 && knob(k).in(x, y)) {
                 const uint32_t idx = kGlobalBase + sendG(k) + selTrack;
-                if (dbl) { setParamGesture(idx, globalDefault(sendG(k) + selTrack)); repaint(); return true; }
+                if (dbl) {
+                    setParamGesture(idx, globalDefault(sendG(k) + selTrack));
+                    for (uint32_t o : sendOthers(k)) setParamGesture(o, globalDefault((int)(o - kGlobalBase)));
+                    repaint(); return true;
+                }
                 drag = dkSend; dragIndex = k; dragY = y; dragStart = sendValue(k);
                 editParameter(idx, true);
+                multiBegin(idx, sendOthers(k));
                 repaint(); return true;
             }
         if (mpage == mpFilter && mfOnPad().in(x, y)) { setParamGesture(kGlobalBase + gMF_ON, gp(gMF_ON) > 0.5f ? 0.f : 1.f); repaint(); return true; }
@@ -3026,12 +3058,14 @@ protected:
                 else {
                     const float def = pi < 8 ? kMachineDefs[machineOf(selTrack)].def[pi] : kFxDefaults[pi - 8];
                     setParamGesture(selTrack * kTrackParams + pi, def);
+                    for (int t = 0; t < kTracks; ++t)
+                        if (knobTarget(t, pi)) setParamGesture(tpIndex(t, pi), pi < 8 ? kMachineDefs[machineOf(t)].def[pi] : kFxDefaults[pi - 8]);
                 }
                 repaint(); return true;
             }
             drag = dkTrackKnob; dragIndex = k; dragY = y; dragStart = knobValue(k); recDirty = false;
-            if (lockStep < 0 && !recording()) editParameter(selTrack * kTrackParams + pi, true);
-            else if (pat().locks[selTrack][lockStep][pi] == kNoLock) setKnob(k, dragStart);
+            if (lockStep < 0 && !recording()) { editParameter(selTrack * kTrackParams + pi, true); multiBegin(tpIndex(selTrack, pi), knobOthers(pi)); }
+            else if (lockStep >= 0 && pat().locks[selTrack][lockStep][pi] == kNoLock) setKnob(k, dragStart);
             repaint(); return true;
         }
         for (int k = 0; k < mSlots(); ++k) {
@@ -3140,6 +3174,7 @@ protected:
 
     bool onMotion(const MotionEvent& ev) override
     {
+        if (((ev.mod & kModifierAlt) != 0) != altHeld) { altHeld = !altHeld; repaint(); }   // ALL shown while Alt is held
         {   // hover tracking for tooltips
             const float hx = ev.pos.getX() / sx, hy = ev.pos.getY() / sx;
             if (std::fabs(hx - hovX) > 3.f || std::fabs(hy - hovY) > 3.f) {
@@ -3162,7 +3197,9 @@ protected:
         const float v = dragStart + (dragY - y) * sens;
         switch (drag) {
         case dkTrackKnob: setKnob(dragIndex, v); break;
-        case dkSend: if (sendG(dragIndex) >= 0) setParam(kGlobalBase + sendG(dragIndex) + selTrack, clampf(v, 0.f, 127.f)); repaint(); break;
+        case dkSend:
+            if (sendG(dragIndex) >= 0) { setParam(kGlobalBase + sendG(dragIndex) + selTrack, clampf(v, 0.f, 127.f)); if (!mIdx.empty()) multiFollow(clampf(v, 0.f, 127.f)); }
+            repaint(); break;
         case dkEuclid: {
             const int n = tlen(selTrack);
             int nv = (int)std::lround(dragStart + (dragY - y) * 0.08f);
@@ -3206,10 +3243,12 @@ protected:
             repaint(); return true;
         }
         if (d == 0.f || overlay != ovNone) return false;
+        allNow = allLatch || (ev.mod & kModifierAlt) != 0;
         for (int k = 8; k < mSlots(); ++k)   // ECHO tab knobs 9-12
             if (mKnob(k).in(x, y) && masterParam(mpage, k) >= 0) { setMaster(k, gp(masterParam(mpage, k)) + d, true); return true; }
         for (int k = 0; k < slots(); ++k) {
             if (knob(k).in(x, y) && sendG(k) >= 0) {
+                for (uint32_t o : sendOthers(k)) setParamGesture(o, clampf(values[o] + d, 0.f, 127.f));
                 setParamGesture(kGlobalBase + sendG(k) + selTrack, clampf(sendValue(k) + d, 0.f, 127.f)); repaint(); return true;
             }
             if (knob(k).in(x, y) && euclidSlot(k)) {
@@ -3225,9 +3264,9 @@ protected:
             if (knob(k).in(x, y) && pageParam(page, k) >= 0) {
                 const uint32_t idx = selTrack * kTrackParams + pageParam(page, k);
                 const bool gesture = lockStep < 0 && !recording();
-                if (gesture) editParameter(idx, true);
+                if (gesture) { editParameter(idx, true); multiBegin(idx, knobOthers(pageParam(page, k))); }
                 setKnob(k, knobValue(k) + d);
-                if (gesture) editParameter(idx, false);
+                if (gesture) { editParameter(idx, false); multiEnd(); }
                 recDirty = false;
                 return true;
             }
@@ -3457,6 +3496,56 @@ private:
         if (lfoColChip().in(x, y)) { lfoPick = l; repaint(); return true; }
         return false;
     }
+    // ------------------------------------------------------------------ ALL: one knob moves every track
+    // Alt (Option) + knob, or the ALL button: the same parameter of every track moves by the same amount (each track
+    // keeps its own offset). Synth knobs only move the tracks that use the same machine.
+    bool allLatch = false, altHeld = false, allNow = false;
+    bool allShown() const { return allLatch || altHeld; }
+    R allBtn() const { return {640.f, 304.f, 58.f, 28.f}; }
+    std::vector<uint32_t> mIdx; std::vector<float> mBase; float mBase0 = 0.f;
+    // track t follows the selected track's knob pi
+    bool knobTarget(int t, int pi) const
+    {
+        if (t == selTrack) return false;
+        return (allNow && (pi >= 8 || machineOf(t) == machineOf(selTrack))) || false;
+    }
+    std::vector<uint32_t> knobOthers(int pi) const
+    {
+        std::vector<uint32_t> v;
+        for (int t = 0; t < kTracks; ++t) if (knobTarget(t, pi)) v.push_back(tpIndex(t, pi));
+        return v;
+    }
+    uint32_t sendIdxFor(int k, int t) const { return kGlobalBase + sendG(k) + t; }
+    std::vector<uint32_t> sendOthers(int k) const
+    {
+        std::vector<uint32_t> v;
+        if (sendG(k) < 0) return v;
+        for (int t = 0; t < kTracks; ++t)
+            if (t != selTrack && ((allNow && (!(sendG(k) == gKATK) || machineOf(t) == machineOf(selTrack))) || false)) v.push_back(sendIdxFor(k, t));
+        return v;
+    }
+    void multiBegin(uint32_t sel, const std::vector<uint32_t>& others)
+    {
+        multiEnd();
+        mIdx = others; mBase0 = values[sel];
+        for (uint32_t i : mIdx) { mBase.push_back(values[i]); editParameter(i, true); }
+    }
+    void multiFollow(float v)
+    {
+        const float d = v - mBase0;
+        for (size_t j = 0; j < mIdx.size(); ++j) setParam(mIdx[j], clampf(mBase[j] + d, 0.f, 127.f));
+    }
+    void multiEnd() { for (uint32_t i : mIdx) editParameter(i, false); mIdx.clear(); mBase.clear(); }
+    void drawAllBadge(const R& r) { label(r.x + 6, r.y + 8, "ALL", 8.5f, th->logo == lgRiso ? th->text : th->accent, ALIGN_LEFT | ALIGN_MIDDLE); }
+
+    // ------------------------------------------------------------------ metronome while recording (per user)
+    bool clickOn = true;
+    R clickBtn() const { return {20.f, 662.f, 96.f, 18.f}; }
+    void sendClick()
+    {
+        if (direct) direct->setClick(clickOn);
+        else setState("cmd", clickOn ? "click 1" : "click 0");
+    }
     bool euclidSlot(int k) const { return page == pgTrack && (k == 6 || k == 7); }
     void applyEuclid(int t)
     {
@@ -3471,6 +3560,28 @@ private:
         sendCmd("tr " + std::to_string(editPattern()) + " " + std::to_string(t) + " " + trackToHex(*tmp, t));
     }
     bool rec = false, recDirty = false; float recVal = 0;
+    DrumDirect* direct = nullptr;   // the plug-in (same process): live-recorded trigs, REC, click
+    bool clickSent = false;
+    void setRec(bool on)
+    {
+        rec = on;
+        if (direct) direct->setRecording(on);
+        else setState("cmd", on ? "rec 1" : "rec 0");
+    }
+    // trigs played on a MIDI keyboard while recording are written into the pattern here
+    void pollRecorded()
+    {
+        if (!direct) return;
+        std::string c;
+        int pt, t, s; bool acc;
+        char b[64];
+        while (direct->popRecorded(pt, t, s, acc)) {
+            if (pt < 0 || pt >= kPatterns || t < 0 || t >= kTracks || s < 0 || s >= kSteps) continue;
+            const uint8_t f = (uint8_t)(bank->patterns[pt].flags[t][s] | sfTrig | (acc ? sfAccent : 0));
+            std::snprintf(b, sizeof(b), "f %d %d %d %d\n", pt, t, s, f); c += b;
+        }
+        if (!c.empty()) { c.pop_back(); sendLines(c); repaint(); }
+    }
     bool fillOn = false;
     int skin = kDefaultSkin;
     const Theme* th = &kThemes[kDefaultSkin];

@@ -1,6 +1,7 @@
 // Kinetik KDSP-16 — DPF plugin glue
 #include "DistrhoPlugin.hpp"
 #include "Engine.hpp"
+#include "DrumShared.hpp"
 #include "License.hpp"
 #include <atomic>
 #include <cmath>
@@ -26,9 +27,20 @@ static String paramSymbol(int track, int p)
 
 static constexpr uint32_t kKitBit = 1u << 16;
 
-class KinetikPlugin : public Plugin
+class KinetikPlugin : public Plugin, public DrumDirect
 {
 public:
+    // ---- DrumDirect (UI thread) ----
+    bool popRecorded(int& pattern, int& track, int& step, bool& accent) override
+    {
+        RecEvent e;
+        if (!engine->popRec(e)) return false;
+        pattern = e.pattern; track = e.track; step = e.step; accent = e.accent;
+        return true;
+    }
+    void setRecording(bool on) override { recFlag.store(on); }
+    void setClick(bool on) override { clickFlag.store(on); }
+
     KinetikPlugin()
         : Plugin(kTotalParams, 0, 5)
     {
@@ -270,6 +282,10 @@ protected:
                     licensed.store(lic::findInstalled(kProductCode).valid);
                 } else if (line.rfind("gh ", 0) == 0) {                  // glitch HOLD button
                     engine->setGlitchHold(std::atoi(line.c_str() + 3) != 0);
+                } else if (line.rfind("rec ", 0) == 0) {                 // REC armed (MIDI notes write trigs)
+                    recFlag.store(std::atoi(line.c_str() + 4) != 0);
+                } else if (line.rfind("click ", 0) == 0) {               // metronome while recording
+                    clickFlag.store(std::atoi(line.c_str() + 6) != 0);
                 } else if (line.rfind("fill ", 0) == 0) {
                     fillFlag.store(std::atoi(line.c_str() + 5) != 0);
                 } else if (line.rfind("aud ", 0) == 0) {
@@ -345,6 +361,8 @@ protected:
             }
         }
         engine->fill = fillFlag.load();
+        engine->recording = recFlag.load();
+        engine->click.enabled = clickFlag.load();
         const uint32_t aud = auditionMask.exchange(0);
         for (int t = 0; t < kTracks; ++t) if (aud & (1u << t)) engine->audition(t, 1.f);
 
@@ -406,7 +424,7 @@ private:
     mutable std::mutex masterMutex;
     std::atomic<uint32_t> dirty{0};
     std::atomic<uint32_t> auditionMask{0};
-    std::atomic<bool> fillFlag{false};
+    std::atomic<bool> fillFlag{false}, recFlag{false}, clickFlag{true};
     std::atomic<bool> licensed{false};
     uint64_t demoPos = 0; float demoGain = 1.f;
     static constexpr const char* kProductCode = "KDSP-16";
