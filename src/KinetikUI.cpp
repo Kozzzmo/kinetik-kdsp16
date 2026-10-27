@@ -2917,7 +2917,7 @@ protected:
         if (trkCopy().in(x, y)) return "Copy this track: its steps and its sound.";
         if (trkPaste().in(x, y)) return "Click: paste the copied steps. Right-click: paste the copied sound.";
         if (trkClear().in(x, y)) return "Remove every step of this track in this pattern.";
-        if (patMidi().in(x, y)) return "Export this pattern as a MIDI file (Documents / Kinetik / KDSP-16 MIDI): channel 10, notes 36-51 = tracks 1-16, accents at velocity 127. Drag it from the folder onto a MIDI track.";
+        if (patMidi().in(x, y)) return "Export this pattern as a MIDI file (Documents / Kinetik / KDSP-16 MIDI): channel 10, notes C3-D#4 (60-75) = tracks 1-16, accents at velocity 127. Drag it from the folder onto a MIDI track.";
         if (lockClrAll().in(x, y)) return "Remove every parameter lock of this track in this pattern.";
         if (shiftL().in(x, y)) return "Move the steps of this track one step earlier.";
         if (shiftR().in(x, y)) return "Move the steps of this track one step later.";
@@ -2929,7 +2929,7 @@ protected:
         for (int t = 0; t < kTracks; ++t) {
             if (soloBtn(t).in(x, y)) return "Solo: only the soloed tracks play.";
             if (muteBtn(t).in(x, y)) return "Mute this track.";
-            if (trackBtn(t).in(x, y)) return "Click: edit this track. MIDI notes 36-51 play tracks 1-16.";
+            if (trackBtn(t).in(x, y)) return "Click: edit this track. MIDI notes C3-D#4 (60-75) play tracks 1-16 (track 1 = C3, track 2 = C#3...).";
         }
         for (int i = 0; i < 16; ++i)
             if (stepBtn(i).in(x, y)) return "Click: trig on / off. Right-click: select the step to lock parameters (several with more right-clicks).";
@@ -3644,7 +3644,7 @@ private:
 
     // ------------------------------------------------------------------ MIDI export of the edited pattern
     // Every trig of the pattern over its master length, with swing, micro-timing and ratchets; conditions and
-    // probabilities are not applied (each trig is written once). Notes 36-51 on channel 10 play the tracks back.
+    // probabilities are not applied (each trig is written once). Notes 60-75 (C3-D#4) on channel 10 play the tracks back.
     void exportMidi()
     {
         const int pi = editPattern();
@@ -3667,7 +3667,7 @@ private:
                 const double base = k * sbt + ((k & 1) ? (P.swing / 100.0 * 2.0 - 1.0) * sbt : 0.0) + P.micro[t][s] / 24.0 * sbt;
                 for (int j = 0; j < n; ++j) {
                     midi::Note m;
-                    m.track = (int)names.size() - 1; m.channel = 9; m.note = 36 + t;
+                    m.track = (int)names.size() - 1; m.channel = 9; m.note = kDrumNoteBase + t;
                     m.velocity = (P.flags[t][s] & sfAccent) ? 127 : 100;
                     m.start = std::max(0.0, base + j * sbt / n); m.length = sbt / n * 0.5;
                     notes.push_back(m);

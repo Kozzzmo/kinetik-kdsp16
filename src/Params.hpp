@@ -56,6 +56,9 @@ static constexpr int kTrackSpeeds = 8;
 static const float kTrackSpeedMult[kTrackSpeeds] = {1.f, 2.f, 4.f, 1.5f, 0.75f, 0.5f, 0.25f, 0.125f};
 static const char* const kTrackSpeedNames[kTrackSpeeds] = {"1x", "2x", "4x", "3/2x", "3/4x", "1/2x", "1/4x", "1/8x"};
 inline float trackSpeedMult(int v) { return kTrackSpeedMult[v < 0 ? 0 : (v >= kTrackSpeeds ? kTrackSpeeds - 1 : v)]; }
+// MIDI drum map: notes kDrumNoteBase .. + 15 play tracks 1-16 (60 = C3 in Ableton naming; 36 = C1 before 0.18.1)
+static constexpr int kDrumNoteBase = 60;
+
 enum KitField { kfChoke = 0, kfOut, kfMidi, kfFmq, kfOsc, kfSpeed, kKitFields };
 static const char* const kKitNames[kKitFields] = {"CHOKE", "OUTPUT", "MIDI CH", "FM SNAP", "OSC WAVE", "SPEED"};
 static const int kKitMax[kKitFields] = {4, 3, 16, 1, 2, kTrackSpeeds - 1};

@@ -393,8 +393,8 @@ protected:
                         melodic = true;
                     }
                 if (melodic) continue;
-                // otherwise: drum map, notes 36..51 = tracks 1..16
-                const int tr = (int)ev.data[1] - 36;
+                // otherwise: drum map, notes C3..D#4 (60..75) = tracks 1..16
+                const int tr = (int)ev.data[1] - kDrumNoteBase;
                 if (tr >= 0 && tr < kTracks)
                     notes.push_back({ev.frame, tr, ev.data[2] / 100.f, 0});
             }

@@ -16,7 +16,7 @@ Sister product: **Kinetik KMSP-6** (mono synth), repository `Kozzzmo/kinetik-kms
 | `FileDrop.hpp/.cpp`, `FileDropMac.mm` | files dropped on the window (Windows OLE `IDropTarget`, macOS dragging methods added to the DPF view at run time; Linux: none) |
 | `third_party/dr_libs/dr_wav.h` | WAV / AIFF decoder (public domain / MIT-0), UI side only |
 | `Engine.hpp` | sequencer + voices + master FX, 4 output buses |
-| `KinetikPlugin.cpp` | DPF plugin glue: parameters, states, MIDI (notes 36–51 = tracks, or chromatic per track MIDI channel), `DrumDirect` (live trig recording, click) |
+| `KinetikPlugin.cpp` | DPF plugin glue: parameters, states, MIDI (notes 60–75 = C3–D#4 = tracks since 0.18.1, `kDrumNoteBase`; or chromatic per track MIDI channel), `DrumDirect` (live trig recording, click) |
 | `KinetikUI.cpp` | the whole UI (1180×720 canvas; pages SYNTH FILTER FX MIX LFO 1 LFO 2 TRACK, `pageParam` lists the knobs of each; the upper LCD draws a graphic per page via `drawPageGraphic` — the SYNTH page renders one hit with a private `Voice`; overlays: machine picker, presets, help, skins, save, LFO destination menu `ovDest`) |
 | `Presets.hpp` | 36 factory presets built in code (`PB` builder; categories, level trims) |
 | `Random.hpp`, `Help.hpp`, `Skins.hpp`, `Fonts.hpp`, `Dsp.hpp` | randomizers, help texts, 4 skins, embedded fonts, DSP helpers |
@@ -313,3 +313,4 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
   listed first in the browser (sort key). `loadPreset` -> `loadKitSamples()`: `decodeSampleFile(factorySampleDir() + path)`
   (split out of `loadSampleFile`) + `smp` state per track; missing library -> message "Sample library not found". In tests
   the library is absent, so the kits are silent there (regress references = silence).
+- MIDI drum map (0.18.1, owner's request): `kDrumNoteBase = 60` (C3 = track 1 ... D#4 = track 16) in the plug-in and the MIDI export; was 36 (C1).

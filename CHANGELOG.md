@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.18.1
+
+- **MIDI drum map moved up two octaves**: track 1 is now played by **C3** (note 60), track 2 by C#3, track 3 by D3... up to
+  track 16 on D#4 (note 75); before, track 1 was C1 (note 36). Exported MIDI patterns use the same notes. Tracks with their
+  own MIDI channel still play chromatically.
+
 ## 0.18.0
 
 - **Built-in sample library**: three folders installed with KDSP-16 — 909, 808 and R-8 MkII — in the LIBRARY window of the
