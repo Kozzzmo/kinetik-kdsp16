@@ -302,3 +302,4 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
   "02 808 Kit", "03 R-8 MkII Kit" with embedded samples, and Documents/Kinetik/KDSP-16 Samples). They are commercial packs:
   never put them in the repository (public) or in factory presets / installers.
 - Beat marks (0.17.1): 1 px line under step numbers with `s % 4 == 0` (drawSequencer).
+- Pattern box (0.17.2): buttons 24 px high from y 424 (rows 28 apart), MIDI / COPY / PASTE / CLEAR at y 398, 22 px: everything inside the inner box {716, 394, 448, 88}.
