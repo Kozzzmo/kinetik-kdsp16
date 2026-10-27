@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.18.0
+
+- **Built-in sample library**: three folders installed with KDSP-16 — 909, 808 and R-8 MkII — in the LIBRARY window of the
+  SAMPLE machine.
+- **Three factory sample kits**, listed first in the presets window: **909 Kit**, **808 Kit** and **R-8 MkII Kit**. Every
+  track plays a sample of the library (kick on track 1, snare on 2, clap, closed / open hats, toms, percussion...), with a
+  starter groove.
+
 ## 0.17.3
 
 - SAMPLE tracks show the name of their sample on the track buttons (instead of "SAMPLE"); long names get a smaller font, then are cut.

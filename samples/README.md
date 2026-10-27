@@ -18,3 +18,6 @@ Users can add their own in `Documents/Kinetik/KDSP-16 Samples` (shown as USER in
 
 Only add files Kinetik has the right to distribute (own recordings or a licence that allows redistribution inside a
 product), and list any third-party source in `THIRD_PARTY_NOTICES.txt`.
+
+Current content: `909/`, `808/` and `R-8 MkII/` (third-party one-shots redistributed with written permission, see
+`THIRD_PARTY_NOTICES.txt`); the factory presets "909 Kit", "808 Kit" and "R-8 MkII Kit" load their tracks from them.

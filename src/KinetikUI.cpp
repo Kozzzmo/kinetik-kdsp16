@@ -1607,7 +1607,9 @@ protected:
                 if ((presetPage == 0 || isFav(false, kPresets[i].name)) && (presetCat < 0 || kPresets[i].cat == presetCat)
                     && (match(kPresets[i].name, kPresets[i].desc) || match(kPresetCats[kPresets[i].cat], nullptr)))
                     presetView.push_back({false, i, kPresets[i].name});
-        std::stable_sort(presetView.begin(), presetView.end(), [](const PEntry& x, const PEntry& y) { return kPresets[x.idx].cat < kPresets[y.idx].cat; });   // grouped by style
+        std::stable_sort(presetView.begin(), presetView.end(), [](const PEntry& x, const PEntry& y) {
+            const bool kx = kPresets[x.idx].smp != nullptr, ky = kPresets[y.idx].smp != nullptr;   // sample kits first
+            return kx != ky ? kx : kPresets[x.idx].cat < kPresets[y.idx].cat; });   // grouped by style
         if (presetPage != 0 && presetCat < 0)   // user presets have no style: shown with ALL
             for (int i = 0; i < (int)userPresets.size(); ++i)
                 if ((presetPage == 1 || isFav(true, userPresets[i])) && match(userPresets[i], nullptr))
@@ -2196,7 +2198,8 @@ protected:
         const size_t d = n.find_last_of('.');
         return d == std::string::npos ? n : n.substr(0, d);
     }
-    bool loadSampleFile(const std::string& path, int t)
+    // WAV / AIFF file -> mono sample normalized to -1 dBFS (nullptr if it cannot be read)
+    static std::shared_ptr<SampleData> decodeSampleFile(const std::string& path)
     {
         std::vector<uint8_t> bytes;
         unsigned int ch = 0, rate = 0; drwav_uint64 frames = 0;
@@ -2205,8 +2208,7 @@ protected:
             pcm = drwav_open_memory_and_read_pcm_frames_f32(bytes.data(), bytes.size(), &ch, &rate, &frames, nullptr);
         if (pcm == nullptr || ch == 0 || rate == 0 || frames == 0) {
             if (pcm) drwav_free(pcm, nullptr);
-            smpMsg = "Could not read " + baseName(path) + " (WAV or AIFF only)"; smpMsgTicks = 150; repaint();
-            return false;
+            return nullptr;
         }
         auto d = std::make_shared<SampleData>();
         d->sr = rate;
@@ -2224,6 +2226,12 @@ protected:
         drwav_free(pcm, nullptr);
         // normalize to -1 dBFS so every sample plays as loud as the synthesized drums
         if (peak > 1e-4f) { const float g = 0.89f / peak; for (float& v : d->pcm) v *= g; }
+        return d;
+    }
+    bool loadSampleFile(const std::string& path, int t)
+    {
+        auto d = decodeSampleFile(path);
+        if (!d) { smpMsg = "Could not read " + baseName(path) + " (WAV or AIFF only)"; smpMsgTicks = 150; repaint(); return false; }
         uiSmp[t] = d;
         setState("smp", smp::encodeLine(t, *d).c_str());
         if (machineOf(t) != mSAMPLE) {
@@ -2479,6 +2487,21 @@ protected:
         (void)g;
     }
 
+    // sample kits (factory presets with PresetDef::smp): each track gets its file from the built-in library
+    void loadKitSamples(const char* const* smp)
+    {
+        int missing = 0;
+        for (int t = 0; t < kTracks; ++t) {
+            if (!smp[t] || !smp[t][0]) continue;
+            std::string rel = smp[t];
+            for (char& c : rel) if (c == '/') c = pathSep();
+            auto d = decodeSampleFile(factorySampleDir() + rel);
+            if (!d) { ++missing; continue; }
+            uiSmp[t] = d;
+            setState("smp", smp::encodeLine(t, *d).c_str());
+        }
+        if (missing) { smpMsg = "Sample library not found: reinstall KDSP-16"; smpMsgTicks = 250; }
+    }
     void loadPreset(int i, bool withPatterns)
     {
         snapshot("preset");
@@ -2488,6 +2511,7 @@ protected:
         if (!withPatterns) // keep the current patterns, take only the kit
             for (int p = 0; p < kPatterns; ++p) nb->patterns[p] = bank->patterns[p];
         applyState(nv.data(), nb.get());
+        if (kPresets[i].smp) loadKitSamples(kPresets[i].smp);
         if (withPatterns) { setParamGesture(kGlobalBase + gPATTERN, 0.f); stepPg = 0; }
         clearSel();
         presetName = kPresets[i].name;

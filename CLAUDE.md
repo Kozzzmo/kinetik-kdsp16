@@ -298,9 +298,18 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
   (nearest step of the track's own grid, accent if velocity > 105) and `Track::recSkipK` so the new trig is not replayed
   right after the live hit; the UI's `pollRecorded()` (uiIdle) writes `f` commands (undoable). UI-auditions are not
   recorded (right-click on a track still records through `recordTrig`). Test: `tests/liverec.cpp`.
-- Personal kits: the owner's 808 / 909 / R-8 MkII sample packs live only on the owner's PC (user presets "01 909 Kit",
-  "02 808 Kit", "03 R-8 MkII Kit" with embedded samples, and Documents/Kinetik/KDSP-16 Samples). They are commercial packs:
-  never put them in the repository (public) or in factory presets / installers.
+- 808 / 909 / R-8 MkII samples (owner's request, 2026-10-27): third-party packs ("breakcore is not a good way to get laid"
+  TR folder; Boxed Ear R-8 MkII). The owner stated he holds **written permission to redistribute** them; they are in
+  `samples/909`, `samples/808`, `samples/R-8 MkII` (extensions lower-cased) and listed in THIRD_PARTY_NOTICES.txt. Any
+  other third-party sample still needs the same written permission first.
 - Beat marks (0.17.1): 1 px line under step numbers with `s % 4 == 0` (drawSequencer).
 - Pattern box (0.17.2): buttons 24 px high from y 424 (rows 28 apart), MIDI / COPY / PASTE / CLEAR at y 398, 22 px: everything inside the inner box {716, 394, 448, 88}.
 - Track buttons (0.17.3): a SAMPLE track with a sample shows `uiSmp[t]->name` via `fitLabel(text, maxW, size)` (size down to 8 px, then cut with "..").
+
+## Added in KDSP-16 0.18 — factory sample kits
+
+- `PresetDef::smp` (per track, a path relative to the built-in library, "" = none). Kits "909 Kit", "808 Kit",
+  "R-8 MkII Kit" (`kSmp909/808/R8`, `sampleKit()`), appended at the end of `kPresets` (indices of the others unchanged),
+  listed first in the browser (sort key). `loadPreset` -> `loadKitSamples()`: `decodeSampleFile(factorySampleDir() + path)`
+  (split out of `loadSampleFile`) + `smp` state per track; missing library -> message "Sample library not found". In tests
+  the library is absent, so the kits are silent there (regress references = silence).

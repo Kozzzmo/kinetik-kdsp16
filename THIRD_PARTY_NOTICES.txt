@@ -774,3 +774,18 @@ INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
 DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
+
+--------------------------------------------------------------------------------
+Built-in sample library (Samples folder, used by the "909 Kit", "808 Kit" and
+"R-8 MkII Kit" factory presets)
+--------------------------------------------------------------------------------
+
+- Samples/909 and Samples/808: one-shots from the sample pack "breakcore is not a
+  good way to get laid" (Drum Hits / TR).
+- Samples/R-8 MkII: one-shots from the "R-8 MkII" sample pack by Boxed Ear.
+
+These files are redistributed with KDSP-16 under written permission obtained by
+Kinetik from their authors. They remain the property of their respective owners
+and may only be used together with KDSP-16 under the same terms; they may not be
+extracted and redistributed on their own. Product and model names (808, 909, R-8)
+are trademarks of their owners and are used only to describe the source sounds.

@@ -1049,9 +1049,69 @@ static void presetPolymeter(PB& b)
 
 // factory preset: expReso = voiced with the 0.11 RESONANCE curve; cat = style (kPresetCats); trimDb = level trim so every
 // preset plays at about the same loudness (-16 LUFS, measured with tests/audit.cpp --fit)
-struct PresetDef { const char* name; const char* desc; void (*build)(PB&); bool expReso = false; int cat = 0; float trimDb = 0.f; };
+// smp: per track, a file of the built-in sample library (path relative to its folder, "" = none) that the UI loads
+// onto the track's SAMPLE machine when the preset is loaded; such kits are listed first in the browser
+struct PresetDef { const char* name; const char* desc; void (*build)(PB&); bool expReso = false; int cat = 0; float trimDb = 0.f;
+                   const char* const* smp = nullptr; };
 enum PresetCat { pcBasics, pcTechno, pcHouse, pcBreaks, pcHipHop, pcElectro, pcPerc, pcExperimental, pcAmbient, kPresetCatCount };
 static const char* const kPresetCats[kPresetCatCount] = {"BASICS", "TECHNO", "HOUSE", "BREAKS", "HIP-HOP", "ELECTRO", "PERCUSSION", "EXPERIMENTAL", "AMBIENT"};
+
+
+// ---- sample kits: every track is a SAMPLE machine playing a file of the built-in library (samples/, installed with
+// the plug-in; redistributed with written permission, see THIRD_PARTY_NOTICES.txt). Without the library the tracks are silent.
+static const char* const kSmp909[kTracks] = {"909/909BDRUM.wav", "909/909SNARE.wav", "909/909CLAP.wav", "909/909CLHAT.wav",
+    "909/909OPHAT.wav", "909/909LTOM.wav", "909/909MTOM.wav", "909/909HTOM.wav", "909/909RIM.wav", "909/909RIDE.wav",
+    "909/909CRASH.wav", "", "", "", "", ""};
+static const char* const kSmp808[kTracks] = {"808/808BDRUM.wav", "808/808SNARE.wav", "808/808CLAP.wav", "808/808CLHAT.wav",
+    "808/808OPHAT.wav", "808/808RIM.wav", "808/808CLAVE.wav", "808/808COW.wav", "808/808SHAKE.wav", "808/808CRASH.wav",
+    "", "", "", "", "", ""};
+static const char* const kSmpR8[kTracks] = {"R-8 MkII/PUNCHK.wav", "R-8 MkII/FATS1.wav", "R-8 MkII/DRYCLAP.wav",
+    "R-8 MkII/78CHH.wav", "R-8 MkII/78OHH.wav", "R-8 MkII/VIDEOK.wav", "R-8 MkII/VIDEOS.wav", "R-8 MkII/808T_B.wav",
+    "R-8 MkII/909T.wav", "R-8 MkII/909SIDE.wav", "R-8 MkII/808COW.wav", "R-8 MkII/78TAMB.wav", "R-8 MkII/CABASA.wav",
+    "R-8 MkII/808CNG_A.wav", "R-8 MkII/FINGSNAP_A.wav", "R-8 MkII/BRRDC1.wav"};
+static void sampleKit(PB& b, const char* const* smp)
+{
+    for (int t = 0; t < kTracks; ++t) if (smp[t][0]) b.kit(t, mSAMPLE);
+    b.choke(3, 1); b.choke(4, 1);   // the closed hat cuts the open hat
+}
+static void preset909(PB& b)
+{
+    sampleKit(b, kSmp909);
+    b.g(gTEMPO, 126);
+    b.fx(2, tpREV, 20); b.fx(9, tpPAN, 76); b.fx(5, tpPAN, 50); b.fx(7, tpPAN, 78);
+    b.row(0, 0, "x...x...x...x...");
+    b.row(0, 2, "....x.......x...");
+    b.row(0, 3, "x.x.x.x.x.x.x.x.");
+    b.row(0, 4, "..x...x...x...x.");
+    b.row(0, 9, "..........x...x.");
+    b.row(0, 10, "x...............");
+}
+static void preset808(PB& b)
+{
+    sampleKit(b, kSmp808);
+    b.g(gTEMPO, 104);
+    b.fx(6, tpPAN, 80); b.fx(7, tpPAN, 48); b.fx(8, tpPAN, 76);
+    b.row(0, 0, "x.....x...x.....");
+    b.row(0, 1, "....x.......x...");
+    b.row(0, 2, "............x...");
+    b.row(0, 3, "x.xxx.x.x.xxx.x.");
+    b.row(0, 4, "..............x.");
+    b.row(0, 6, "...x......x.....");
+    b.row(0, 7, ".......x........");
+    b.row(0, 9, "x...............");
+}
+static void presetR8(PB& b)
+{
+    sampleKit(b, kSmpR8);
+    b.g(gTEMPO, 112);
+    b.fx(11, tpPAN, 80); b.fx(12, tpPAN, 48); b.fx(13, tpPAN, 72);
+    b.row(0, 0, "x......x..x.....");
+    b.row(0, 1, "....x.......x...");
+    b.row(0, 3, "xxxxxxxxxxxxxxx.");
+    b.row(0, 4, "...............x");
+    b.row(0, 11, "....x.......x...");
+    b.row(0, 12, "x.xxx.xxx.xxx.xx");
+}
 
 static const PresetDef kPresets[] = {
     {"Init",               "Factory state: default kit, every parameter at its base, empty sequencer", presetInit, false, pcBasics, 0.0f},
@@ -1090,6 +1150,9 @@ static const PresetDef kPresets[] = {
     {"Reverse Dub",        "Slow dub: rims and bells into a REVERSE echo, long reverb",         presetReverseDub, true, pcAmbient, 6.1f},
     {"Halftime",           "85 BPM halftime: hats at 2x with rolls, deep sine bass",            presetHalftime, true, pcHipHop, 2.9f},
     {"Polymeter",          "Tracks of 16, 13, 11, 9, 7 and 5 steps through a MULTI-TAP echo",   presetPolymeter, true, pcExperimental, 7.3f},
+    {"909 Kit",            "Sample kit (909 folder of the library): house groove at 126 BPM",  preset909, true, pcBasics, 0.f, kSmp909},
+    {"808 Kit",            "Sample kit (808 folder of the library): electro groove at 104 BPM", preset808, true, pcBasics, 0.f, kSmp808},
+    {"R-8 MkII Kit",       "Sample kit (R-8 MkII folder): kick, snares, hats, toms, percussion", presetR8, true, pcBasics, 0.f, kSmpR8},
 };
 static constexpr int kNumPresets = (int)(sizeof(kPresets) / sizeof(kPresets[0]));
 
