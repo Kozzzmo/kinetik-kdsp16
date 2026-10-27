@@ -199,6 +199,7 @@ jobs:
           g++ -O2 -std=c++17 tests/speed.cpp -o /tmp/speed-test && /tmp/speed-test          # per-track SPEED
           g++ -O2 -std=c++17 tests/morph.cpp -o /tmp/morph-test && /tmp/morph-test          # scenes, LFO -> MORPH, CHAOS sends
           g++ -O2 -std=c++17 tests/echo.cpp -o /tmp/echo-test && /tmp/echo-test             # echo models, R TIME / DRIVE / DUCK / FREEZE
+          g++ -O2 -std=c++17 tests/chain.cpp -o /tmp/chain-test && /tmp/chain-test           # pattern CHAIN
           g++ -O2 -std=c++17 tests/kickattack.cpp -o /tmp/ka-test && /tmp/ka-test           # kick ATTACK
           g++ -O2 -std=c++17 tests/liverec.cpp -o /tmp/lr-test && /tmp/lr-test             # MIDI trig recording, metronome
           ./scripts/check-shared.sh                                                  # files shared with the sister plug-in

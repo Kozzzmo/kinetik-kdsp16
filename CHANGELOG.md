@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.19.0
+
+- CHAIN: play a list of patterns in a loop, each a number of times (CHAIN button in the pattern box; the view follows the
+  playing pattern).
+
 ## 0.18.1
 
 - **MIDI drum map moved up two octaves**: track 1 is now played by **C3** (note 60), track 2 by C#3, track 3 by D3... up to

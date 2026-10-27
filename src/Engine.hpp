@@ -193,6 +193,7 @@ public:
         if (!playing) {
             wasPlaying = false; usingInternal = false; outStep = -1;
             curPattern = clampi((int)global[gPATTERN], 0, kPatterns - 1);
+            chainPl.reset();
         }
 
         // ---- collect events ----
@@ -208,6 +209,7 @@ public:
             if (restarted) {
                 lastBoundaryK = (int64_t)std::ceil(b0 / sb - 1e-9) - 1;
                 playStartK = lastBoundaryK + 1;
+                { const int c = chainPl.start(bank.chain, true); if (c >= 0) curPattern = c; }   // CHAIN: starts at its first entry
                 for (auto& tr : tracks) { tr.decK = INT64_MIN; tr.pre = true; }
             }
             const Pattern& pat0 = bank.patterns[curPattern];
@@ -217,7 +219,8 @@ public:
             const int64_t kLast = (int64_t)std::floor((b1 + maxMicro) / sb) + 1;
             auto toFrame = [&](double tk) { return (uint32_t)std::min<double>(frames - 1, std::max(0.0, (tk - b0) / beatsPerFrame)); };
             // which pattern plays step k (a queued pattern change happens on the next master-length boundary)
-            const int want = clampi((int)global[gPATTERN], 0, kPatterns - 1);
+            const int chainNext = chainPl.peek(bank.chain);
+            const int want = chainNext >= 0 ? chainNext : clampi((int)global[gPATTERN], 0, kPatterns - 1);
             const int master = pat0.length ? pat0.length : 16;
             const int64_t nextSwitch = ((lastBoundaryK + 1 + master - 1) / master) * master;
             auto patFor = [&](int64_t k) -> const Pattern& {
@@ -317,6 +320,7 @@ private:
     std::vector<float> dummy;
     float pendingAudition[kTracks] = {};
     int curPattern = 0;
+    ChainPlayer chainPl;
     int64_t lastBoundaryK = -1, playStartK = 0;
     bool wasPlaying = false, prevPlayParam = false, usingInternal = false;
     double internalBeat = 0, prevB1 = 0, curBpm = 120;
@@ -361,7 +365,8 @@ private:
             const Pattern& pat = bank.patterns[curPattern];
             const int master = pat.length ? pat.length : 16;
             if ((((e.k % master) + master) % master) == 0) {
-                const int want = clampi((int)global[gPATTERN], 0, kPatterns - 1);
+                const int c = chainPl.next(bank.chain);
+                const int want = c >= 0 ? c : clampi((int)global[gPATTERN], 0, kPatterns - 1);
                 if (want != curPattern) curPattern = want;
             }
             outStep = (int)((((e.k % 32768) + 32768) % 32768) * kFineSteps);

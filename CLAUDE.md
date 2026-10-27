@@ -314,3 +314,12 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
   (split out of `loadSampleFile`) + `smp` state per track; missing library -> message "Sample library not found". In tests
   the library is absent, so the kits are silent there (regress references = silence).
 - MIDI drum map (0.18.1, owner's request): `kDrumNoteBase = 60` (C3 = track 1 ... D#4 = track 16) in the plug-in and the MIDI export; was 36 (C1).
+
+## Added in KDSP-16 0.19 / KMSP-6 0.14 — pattern CHAIN
+
+- `Chain.hpp` (shared by the five Kinetik sequencers: KDSP-16, KMSP-6, KFX-8, KBAS-1, KGRN-4): `Chain` in the Bank (bank line
+  `C <on> <n> <pattern>:<repeats> ...`, command `C`, returns `kKitTouched`), `ChainPlayer` in the Engine: `start(chain, true)`
+  at a restart (these engines also see a boundary at the first step), `peek()` for the block's look-ahead (`patFor`, live
+  recording), `next()` at every master-length boundary in `fire()`. UI: CHAIN button left of MIDI in the pattern box, window
+  `ovChain` (`drawChain` / `chainClick`, same code in every plug-in), the view follows the playing pattern while the chain runs
+  (`uiIdle`). Test: `tests/chain.cpp` (shared).

@@ -1,5 +1,6 @@
 // Kinetik KDSP-16 — pattern bank, serialization and edit commands (shared DSP + UI)
 #pragma once
+#include "Chain.hpp"
 #include "Params.hpp"
 #include "Scene.hpp"
 #include <cstring>
@@ -93,10 +94,12 @@ struct Bank {
     }
 
     // factory state: default kit, empty sequencer
+    Chain chain;             // pattern CHAIN (Chain.hpp, shared by the Kinetik sequencers)
     void initDefault()
     {
         resetKit();
         for (auto& p : patterns) p.clear();
+        chain = Chain();
     }
 
     // the demo groove (used by the "Demo Groove" preset)
@@ -197,6 +200,7 @@ inline std::string serializeBank(const Bank& b)
         for (int f = 0; f < kKitFields; ++f)
             if (b.kit[t][f]) { std::snprintf(buf, sizeof(buf), "K %d %d %d\n", t, f, b.kit[t][f]); s += buf; }
     }
+    if (!b.chain.isDefault()) s += b.chain.line() + "\n";
     // scenes / MORPH lane: no longer written (feature removed); old lines are still read and ignored
     for (int pi = 0; pi < kPatterns; ++pi) {
         const Pattern& p = b.patterns[pi];
@@ -239,6 +243,7 @@ inline int applyCommand(Bank& b, const char* line)
     auto validT = [](int t) { return t >= 0 && t < kTracks; };
     auto validS = [](int s) { return s >= 0 && s < kSteps; };
 
+    if (!std::strcmp(op, "C")) return b.chain.parse(rest, kPatterns) ? kKitTouched : -1;   // C on n pattern:repeats ...
     if (!std::strcmp(op, "P")) { // P pat len scale swing accent
         if (std::sscanf(rest, "%d %d %d %d %d", &a, &c, &d, &e, &f) != 5 || !validP(a)) return -1;
         Pattern& p = b.patterns[a];
