@@ -1446,6 +1446,7 @@ protected:
             if (f & sfSlide) box({led.x, r.y + 25, led.w, 3}, th->lock, 1.f);
             char nb[8]; std::snprintf(nb, sizeof(nb), "%d", s + 1);
             number(r.cx(), r.y + 45, nb, 18.f, inLen ? th->stepText : th->faint);
+            if (s % 4 == 0) box({r.cx() - 8.f, r.y + 55.f, 16.f, 1.f}, inLen ? th->stepText : th->faint);   // beat marks under 1, 5, 9, 13
             if (p.hasLocks(selTrack, s)) { beginPath(); circle(r.cx(), r.y + 62, 2.8f); fillColor(th->lock); fill(); }
             if (inLen && (f & sfTrig)) {
                 std::string ex;

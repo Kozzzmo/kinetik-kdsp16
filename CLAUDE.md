@@ -301,3 +301,4 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
 - Personal kits: the owner's 808 / 909 / R-8 MkII sample packs live only on the owner's PC (user presets "01 909 Kit",
   "02 808 Kit", "03 R-8 MkII Kit" with embedded samples, and Documents/Kinetik/KDSP-16 Samples). They are commercial packs:
   never put them in the repository (public) or in factory presets / installers.
+- Beat marks (0.17.1): 1 px line under step numbers with `s % 4 == 0` (drawSequencer).
