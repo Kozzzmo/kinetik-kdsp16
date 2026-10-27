@@ -496,6 +496,22 @@ protected:
         fillColor(c); textAlign(align); text(x, y, s, nullptr);
         textLetterSpacing(0.f);
     }
+    // text that fits maxW at the label font: tries size, then down to 8 px, then cuts it ("..")
+    std::string fitLabel(std::string s, float maxW, float& size)
+    {
+        const int f = th->fontLabel;
+        DGL_NAMESPACE::Rectangle<float> bb;
+        auto width = [&](const std::string& t, float sz) {
+            useFont(f); fontSize(textSize(sz, f)); textLetterSpacing(f == fnMono ? th->labelSpacing * (sz / 12.f) : 0.f);
+            textBounds(0, 0, t.c_str(), nullptr, bb); textLetterSpacing(0.f);
+            return bb.getWidth();
+        };
+        for (float sz = size; sz >= 8.f; sz -= 1.f) if (width(s, sz) <= maxW) { size = sz; return s; }
+        size = 8.f;
+        bool cut = false;
+        while (s.size() > 2 && width(s + (cut ? ".." : ""), size) > maxW) { s.pop_back(); cut = true; }
+        return cut ? s + ".." : s;
+    }
     enum Icon { icNone, icPlay, icStop, icRec, icNext };
     // icon (drawn as a shape, independent of the font) followed by a label, centred on (cx, cy)
     void iconLabel(float cx, float cy, Icon ic, const char* s, float size, const Color& c, int font = -1, int align = ALIGN_CENTER)
@@ -750,7 +766,11 @@ protected:
             fillColor(lit ? ledOn
                           : Color(fg, Color(0, 0, 0, 0.f), 0.25f)); fill();
             if (lit && th->glow) { beginPath(); circle(r.x + r.w - 11, r.y + 13, 9); fillPaint(radialGradient(r.x + r.w - 11, r.y + 13, 2, 9, Color(ledOn, Color(0, 0, 0, 0.f), 0.5f), Color(0, 0, 0, 0.f))); fill(); }
-            label(r.x + 7, r.y + 36, kMachineDefs[machineOf(t)].name, 10.f, fg, ALIGN_LEFT | ALIGN_MIDDLE);
+            if (machineOf(t) == mSAMPLE && uiSmp[t] && !uiSmp[t]->name.empty()) {   // SAMPLE track: the sample's name
+                float sz = 10.f;
+                const std::string n = fitLabel(uiSmp[t]->name, r.w - 12.f, sz);
+                label(r.x + 7, r.y + 36, n.c_str(), sz, fg, ALIGN_LEFT | ALIGN_MIDDLE);
+            } else label(r.x + 7, r.y + 36, kMachineDefs[machineOf(t)].name, 10.f, fg, ALIGN_LEFT | ALIGN_MIDDLE);
             const bool muted = bank->mute[t] != 0;
             const R mh = muteBtn(t);
             const R m{mh.x + 6, mh.y + 9, mh.w - 10, mh.h - 13};

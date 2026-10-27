@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.17.3
+
+- SAMPLE tracks show the name of their sample on the track buttons (instead of "SAMPLE"); long names get a smaller font, then are cut.
+
 ## 0.17.2
 
 - The second row of pattern buttons (A09-A16) no longer sticks out of the PATTERNS box.
