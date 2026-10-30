@@ -323,3 +323,10 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
   recording), `next()` at every master-length boundary in `fire()`. UI: CHAIN button left of MIDI in the pattern box, window
   `ovChain` (`drawChain` / `chainClick`, same code in every plug-in), the view follows the playing pattern while the chain runs
   (`uiIdle`). Test: `tests/chain.cpp` (shared).
+
+## 0.19.1 (owner: "le volume du kick (analog) me semble bas")
+
+- `kKickGain` (+3.5 dB, `kKickBoostDb`, Params.hpp) on the track volume of KICK-machine tracks in `controlTrack` (after the
+  track DRIVE, so presets can be compensated exactly); `keepKickLevel` in `buildPreset` lowers the KICK tracks' VOL (and
+  VOL locks) of every factory preset except Init by 10^(-3.5/40): regress unchanged. Raw voice: KICK K-weighted -14.3 vs
+  909 sample -11.1 / 808 sample -8.6 at the same peak.

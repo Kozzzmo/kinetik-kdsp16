@@ -1189,6 +1189,7 @@ inline void applyLevelTrim(float* values, float db)
     for (int t = 0; t < kTracks; ++t) { float& tv = values[tpIndex(t, tpVOL)]; tv = std::round(std::min(127.f, tv * extra)); }
 }
 
+inline void keepKickLevel(float* values, Bank& bank);
 inline void buildPreset(int i, float* values, Bank& bank)
 {
     PB b(values, bank);
@@ -1197,6 +1198,19 @@ inline void buildPreset(int i, float* values, Bank& bank)
     if (!kPresets[i].expReso) convertResoV010(values, bank);
     widenIfMono(values, bank);
     applyLevelTrim(values, kPresets[i].trimDb);
+    if (i != 0) keepKickLevel(values, bank);
+}
+// the KICK machine is 3.5 dB louder since 0.19.1: the presets voiced before keep their balance (VOL = v^2: v x 10^(-dB/40))
+inline void keepKickLevel(float* values, Bank& bank)
+{
+    const float k = std::pow(10.f, -kKickBoostDb / 40.f);
+    for (int t = 0; t < kTracks; ++t) {
+        if (bank.machine[t] != mKICK) continue;
+        values[tpIndex(t, tpVOL)] *= k;
+        for (auto& pat : bank.patterns)
+            for (int st = 0; st < kSteps; ++st)
+                if (pat.locks[t][st][tpVOL] != kNoLock) pat.locks[t][st][tpVOL] = (uint8_t)std::lround(pat.locks[t][st][tpVOL] * k);
+    }
 }
 // the presets voiced with the linear RESONANCE curve used before 0.11: their values (knobs and locks) converted to the
 // exponential curve (resoQ) so they keep the same resonance

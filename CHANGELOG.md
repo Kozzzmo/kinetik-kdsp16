@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.1
+
+- The analog KICK machine is 3.5 dB louder (it sat low against the other sounds and against sampled kicks). The factory
+  presets keep their balance (their kick tracks' level is lowered by the same amount); in your own projects and presets
+  the analog kicks come out 3.5 dB louder.
+
 ## 0.19.0
 
 - CHAIN: play a list of patterns in a loop, each a number of times (CHAIN button in the pattern box; the view follows the

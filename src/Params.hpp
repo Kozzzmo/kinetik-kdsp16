@@ -209,6 +209,10 @@ static const MachineDef kMachineDefs[kMachines] = {
     {"SAMPLE", fSample, {"TUNE","START","LENGTH","ATTACK","DECAY","REVERSE","LO-FI","DRIVE"},             {64,0,127,0,127,0,0,0}},
 };
 
+// KICK machine level (0.19.1, owner: "le kick me semble bas"): +3.5 dB. The factory presets voiced before keep their
+// level (their KICK tracks' VOL is lowered by the same amount in buildPreset); Init and new kits get the louder kick.
+static constexpr float kKickBoostDb = 3.5f;
+static const float kKickGain = 1.4962357f;     // 10^(3.5 / 20)
 static const uint8_t kDefaultKit[kTracks] = {
     mKICK, mSNARE, mTOM, mTOM, mCLAP, mRIM, mCOWBELL, mCLHAT,
     mOPHAT, mCYMBAL, mFM_KICK, mFM_SNARE, mFM_HAT, mPH_METAL, mPH_MALLET, mNOISE

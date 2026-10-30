@@ -535,7 +535,7 @@ private:
         tr.srrN = e[tpSRR] > 0.5f ? (int)expmap(e[tpSRR] / 127.f, 1.f, 64.f) : 1;
         tr.dist = e[tpDIST] / 127.f;
         const float v = e[tpVOL] / 127.f;
-        tr.vol = trackSilenced(bank, t) ? 0.f : v * v * 0.8f; // mute silences the track at once
+        tr.vol = trackSilenced(bank, t) ? 0.f : v * v * 0.8f * (bank.machine[t] == mKICK ? kKickGain : 1.f); // mute silences the track at once; KICK +3.5 dB (0.19.1)
         const float pan = e[tpPAN] / 127.f;
         tr.panL = std::cos(pan * kPi * 0.5f); tr.panR = std::sin(pan * kPi * 0.5f);
         tr.del = e[tpDEL] / 127.f * 1.4f; tr.rev = e[tpREV] / 127.f * 1.4f;   // sends go above unity
