@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.20.0
+
+- **New factory presets.** The whole set was rewritten: 24 grooves (techno, house, breaks, hip-hop, electro, experimental,
+  ambient) plus Init and the 909 / 808 / R-8 kits. Each one is a 4-bar piece (64 steps) with variations in the last bar,
+  conditions (probability, 1st, FILL...), ratchets, micro-timing, per-step locks, LFOs, odd track lengths, the echo /
+  reverb / chorus / CHAOS sends, and several patterns in a CHAIN where it helps (breakdowns, fills, snare rolls).
+- Every track of every preset was levelled with a mix measurement (kick on top, snare / clap, then percussion and hats
+  well below), and every preset plays at about the same loudness.
+- The 909 Kit is now a 130 BPM 4-bar groove with a breakdown pattern.
+- Your own presets and projects are not changed.
+
 ## 0.19.1
 
 - The analog KICK machine is 3.5 dB louder (it sat low against the other sounds and against sampled kicks). The factory

@@ -18,7 +18,7 @@ Sister product: **Kinetik KMSP-6** (mono synth), repository `Kozzzmo/kinetik-kms
 | `Engine.hpp` | sequencer + voices + master FX, 4 output buses |
 | `KinetikPlugin.cpp` | DPF plugin glue: parameters, states, MIDI (notes 60–75 = C3–D#4 = tracks since 0.18.1, `kDrumNoteBase`; or chromatic per track MIDI channel), `DrumDirect` (live trig recording, click) |
 | `KinetikUI.cpp` | the whole UI (1180×720 canvas; pages SYNTH FILTER FX MIX LFO 1 LFO 2 TRACK, `pageParam` lists the knobs of each; the upper LCD draws a graphic per page via `drawPageGraphic` — the SYNTH page renders one hit with a private `Voice`; overlays: machine picker, presets, help, skins, save, LFO destination menu `ovDest`) |
-| `Presets.hpp` | 36 factory presets built in code (`PB` builder; categories, level trims) |
+| `Presets.hpp` | factory presets built in code (`PB` builder; categories, level trims); the grooves themselves are in `PresetsV2.hpp` (0.20: 24 presets of 64 steps, `PB2` helpers `kBars` `kRep` `cyc` `lfo` `copy` `chain` `send` `echo` `verb`, `mix({dB...})` = per-track level from the mix checker) |
 | `Random.hpp`, `Help.hpp`, `Skins.hpp`, `Fonts.hpp`, `Dsp.hpp` | randomizers, help texts, 4 skins, embedded fonts, DSP helpers |
 
 User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Application Support/Kinetik/KDSP-16/Presets`
