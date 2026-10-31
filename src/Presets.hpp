@@ -191,18 +191,18 @@ static void presetR8(PB& b)
 
 static const PresetDef kPresets[] = {
     {"Init",            "Factory state: default kit, every parameter at its base, empty sequencer", presetInit, true, pcBasics, 0.0f},
-    {"Demo Groove",     "The default kit with a basic two-bar groove to start from",              v2Demo, true, pcBasics, 6.0f},
+    {"Demo Groove",     "The default kit with a basic two-bar groove to start from",              v2Demo, true, pcBasics, 8.7f},
     {"Warehouse",       "132 BPM peak-time techno: rumble, ride LFO, breakdown and fill in a CHAIN", v2Warehouse, true, pcTechno, -5.5f},
     {"Hard Groove",     "136 BPM: FM kick, snare rolls over 4 bars, 3-against-4 FM hats, metal",  v2HardGroove, true, pcTechno, 0.0f},
-    {"Basik Teck",      "125 BPM tool: kick, clap, hats, a tom figure in a tape echo",            v2BasikTeck, true, pcTechno, 6.9f},
+    {"Basik Teck",      "125 BPM tool: kick, clap, hats, a tom figure in a tape echo",            v2BasikTeck, true, pcTechno, 10.5f},
     {"Dub Pressure",    "122 BPM dub techno: mallet chords and rims in tape echo, long hall, hiss", v2DubPressure, true, pcTechno, 1.4f},
     {"Industrial",      "140 BPM: distorted membrane kick, crushed snare, metal clangs, gated room", v2Industrial, true, pcTechno, -5.7f},
     {"Minimal Groove",  "126 BPM: clicks, claves, woody bass; 12- and 56-step tracks drift",      v2Minimal, true, pcTechno, 4.0f},
     {"K-House",         "128 BPM house: reverb clap, moving shaker, noise sweep, sine bass, toms", v2KHouse, true, pcHouse, -0.3f},
     {"Deep House",      "122 BPM: soft kick, swung shaker, mallet chords with a slow filter",     v2DeepHouse, true, pcHouse, 0.7f},
     {"Chicago Jack",    "126 BPM jacking 4/4: cowbell, rim shuffle, tom line, bouncing sine",     v2Chicago, true, pcHouse, -3.7f},
-    {"UK Garage",       "132 BPM swung 2-step: shuffled hats, rim ghosts, bouncing bass",         v2Garage, true, pcHouse, 4.7f},
-    {"Afro House",      "122 BPM: congas, 3-2 clave, shaker at 3/2x, bells in the chorus",        v2AfroHouse, true, pcPerc, 6.0f},
+    {"UK Garage",       "132 BPM swung 2-step: shuffled hats, rim ghosts, bouncing bass",         v2Garage, true, pcHouse, 7.1f},
+    {"Afro House",      "122 BPM: congas, 3-2 clave, shaker at 3/2x, bells in the chorus",        v2AfroHouse, true, pcPerc, 6.3f},
     {"Breakbeat",       "130 BPM break: ghost snares, ratchets, sub, tom fill",                   v2Breakbeat, true, pcBreaks, -1.1f},
     {"Jungle",          "170 BPM chopped break, rising snare roll, sub, dub stabs; CHAIN",        v2Jungle, true, pcBreaks, -2.4f},
     {"Liquid",          "174 BPM: soft kick, ghost snares, ride, mallets in a ducking MULTI-TAP", v2Liquid, true, pcBreaks, 4.4f},
@@ -211,10 +211,10 @@ static const PresetDef kPresets[] = {
     {"Trap",            "140 BPM: pitched sine boom, hat rolls up to 6, half-time clap",          v2Trap, true, pcHipHop, 1.2f},
     {"Lo-Fi Dust",      "82 BPM: crushed drums, wobbling mallets, vinyl hiss, round bass",        v2LofiDust, true, pcHipHop, 1.6f},
     {"Electro",         "128 BPM: syncopated kick, sine bass with an LFO filter, cowbell, toms",  v2Electro, true, pcElectro, 3.0f},
-    {"Braindance",      "140 BPM all-FM kit, sliding 13-step acid sine, ratcheted hats",          v2Braindance, true, pcElectro, 9.1f},
+    {"Braindance",      "140 BPM all-FM kit, sliding 13-step acid sine, ratcheted hats",          v2Braindance, true, pcElectro, 10.9f},
     {"Polymeter",       "118 BPM: tracks of 16, 13, 11, 9, 7, 5 steps through a MULTI-TAP echo",  v2Polymeter, true, pcExperimental, 1.4f},
     {"Chaos Breaks",    "172 BPM break; CHAOS cuts up only the snares, hats and rims",            v2ChaosBreaks, true, pcExperimental, -2.5f},
-    {"Ambient Metals",  "90 BPM: metals, mallets, strings and bells into a shimmer reverb",       v2AmbientMetals, true, pcAmbient, 8.2f},
+    {"Ambient Metals",  "90 BPM: metals, mallets, strings and bells into a shimmer reverb",       v2AmbientMetals, true, pcAmbient, 13.9f},
     {"909 Kit",         "Sample kit (909 folder): 130 BPM, 4 bars, snare roll and breakdown in a CHAIN",  preset909, true, pcBasics, 4.5f, kSmp909},
     {"808 Kit",         "Sample kit (808 folder of the library): electro groove at 104 BPM", preset808, true, pcBasics, 3.5f, kSmp808},
     {"R-8 MkII Kit",    "Sample kit (R-8 MkII folder): kick, snares, hats, toms, percussion", presetR8, true, pcBasics, 4.5f, kSmpR8},
@@ -242,7 +242,7 @@ inline void widenIfMono(float* values, const Bank& bank)
     }
 }
 // level trim in dB: master VOLUME first (gain = 1.2 (v / 127)^2), what it cannot give goes to the track levels
-inline void applyLevelTrim(float* values, float db)
+inline void applyLevelTrim(float* values, float db, Bank* bank = nullptr)
 {
     if (std::fabs(db) < 0.05f) return;
     float& mv = values[kGlobalBase + gVOLUME];
@@ -250,8 +250,16 @@ inline void applyLevelTrim(float* values, float db)
     float v = 127.f * std::sqrt(gain / 1.2f);
     if (v <= 127.f) { mv = std::round(v); return; }
     mv = 127.f;
-    const float extra = std::sqrt(gain / 1.2f);   // track level scale (track gain = (v / 127)^2)
+    // the rest goes to the track levels (knobs and VOL locks), all by the same factor so the balance stays: at most up
+    // to the loudest track (a quiet preset may stay a little under the target rather than lose its mix)
+    float top = 1.f;
+    for (int t = 0; t < kTracks; ++t) top = std::max(top, values[tpIndex(t, tpVOL)]);
+    if (bank) for (const auto& P : bank->patterns) for (int t = 0; t < kTracks; ++t) for (int s = 0; s < kSteps; ++s)
+        if (P.locks[t][s][tpVOL] != kNoLock) top = std::max(top, (float)P.locks[t][s][tpVOL]);
+    const float extra = std::min(std::sqrt(gain / 1.2f), 127.f / top);   // track gain = (v / 127)^2
     for (int t = 0; t < kTracks; ++t) { float& tv = values[tpIndex(t, tpVOL)]; tv = std::round(std::min(127.f, tv * extra)); }
+    if (bank) for (auto& P : bank->patterns) for (int t = 0; t < kTracks; ++t) for (int s = 0; s < kSteps; ++s) {
+        uint8_t& l = P.locks[t][s][tpVOL]; if (l != kNoLock) l = (uint8_t)std::min(127.f, std::round(l * extra)); }
 }
 
 inline void keepKickLevel(float* values, Bank& bank);
@@ -262,7 +270,7 @@ inline void buildPreset(int i, float* values, Bank& bank)
     kPresets[i].build(b);
     if (!kPresets[i].expReso) convertResoV010(values, bank);
     widenIfMono(values, bank);
-    applyLevelTrim(values, kPresets[i].trimDb);
+    applyLevelTrim(values, kPresets[i].trimDb, &bank);
     if (i != 0) keepKickLevel(values, bank);
 }
 // the KICK machine is 3.5 dB louder since 0.19.1: the presets voiced before keep their balance (VOL = v^2: v x 10^(-dB/40))

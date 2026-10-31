@@ -173,6 +173,7 @@ static void v2BasikTeck(PB& b)
     q.lfo(2, 0, 2, 35, 0, 0, 2);
     q.send(4, 70, 40); q.send(5, 55, 50); q.send(1, 0, 22);
     q.echo(etv8D, 58, emvTape, 30, 65); q.verb(50, 60, rmvPlate, 30, 55);
+    q.comp(80, 30); b.g(gCMP_ATK, 50); b.g(gCMP_REL, 40);   // glue
     b.g(gTEMPO, 125);
     q.vol({{0, 102}, {1, 88}, {2, 76}, {3, 72}, {4, 74}, {5, 62}, {6, 62}});
     q.mix({0.2f, -1.0f, 11.2f, 0.2f, -1.4f, 7.9f, -12.1f});
@@ -655,6 +656,7 @@ static void v2Braindance(PB& b)
     q.lfo(3, 0, 4, 80, 0, 0, tpCUTOFF); q.lfo(3, 1, 9, 40, 5, 0, tpRESO);
     q.send(4, 60, 40); q.send(1, 10, 20); q.send(5, 50, 0);
     q.echo(etv16D, 55, emvPing, 60, 60); q.verb(40, 50, rmvPlate, 50, 50);
+    q.comp(80, 30); b.g(gCMP_ATK, 50); b.g(gCMP_REL, 40);   // glue
     b.g(gTEMPO, 140);
     q.vol({{0, 100}, {1, 84}, {2, 64}, {3, 80}, {4, 62}, {5, 60}});
     q.mix({7.1f, 4.5f, -0.5f, -1.3f, 5.6f, 13.0f});
@@ -741,6 +743,7 @@ static void v2Demo(PB& b)
     q.row(0, 2, kBars({"................", "..........x.x..."}));
     q.pattern(0, 32, 54);
     q.send(4, 0, 30); q.send(6, 40, 0);
+    q.comp(80, 30); b.g(gCMP_ATK, 50); b.g(gCMP_REL, 40);   // glue
     b.g(gTEMPO, 124);
     for (int t = 0; t < kTracks; ++t) b.b.mute[t] = 0;
     q.mix({1.3f, 3.3f, -9.5f, 0.0f, -2.9f, 0.0f, -8.8f, 3.0f, -8.3f});

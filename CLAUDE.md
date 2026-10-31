@@ -330,3 +330,10 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
   track DRIVE, so presets can be compensated exactly); `keepKickLevel` in `buildPreset` lowers the KICK tracks' VOL (and
   VOL locks) of every factory preset except Init by 10^(-3.5/40): regress unchanged. Raw voice: KICK K-weighted -14.3 vs
   909 sample -11.1 / 808 sample -8.6 at the same peak.
+
+## 0.20.0 — new factory presets
+
+- `PresetsV2.hpp` (see the source map). `applyLevelTrim(values, db, &bank)` (both plug-ins): after the master VOLUME, the
+  rest scales every track VOL knob and VOL lock by the same factor, limited so the loudest reaches 127 (it used to clamp
+  tracks one by one); quiet presets use a gentle master compression ("glue": CMP THR 80, RATIO 30). `tests/audit.cpp`
+  (shared) passes the bank. Mix checker used for the levels: render the mix and each track solo, BS.1770 loudness.
