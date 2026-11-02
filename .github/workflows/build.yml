@@ -202,6 +202,7 @@ jobs:
           g++ -O2 -std=c++17 tests/chain.cpp -o /tmp/chain-test && /tmp/chain-test           # pattern CHAIN
           g++ -O2 -std=c++17 tests/kickattack.cpp -o /tmp/ka-test && /tmp/ka-test           # kick ATTACK
           g++ -O2 -std=c++17 tests/liverec.cpp -o /tmp/lr-test && /tmp/lr-test             # MIDI trig recording, metronome
+          g++ -O2 -std=c++17 tests/shimmer.cpp -o /tmp/shim-test && /tmp/shim-test          # SHIMMER reverb stable at every MOD
           ./scripts/check-shared.sh                                                  # files shared with the sister plug-in
       - name: Package
         run: |

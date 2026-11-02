@@ -214,7 +214,7 @@ static const PresetDef kPresets[] = {
     {"Braindance",      "140 BPM all-FM kit, sliding 13-step acid sine, ratcheted hats",          v2Braindance, true, pcElectro, 10.9f},
     {"Polymeter",       "118 BPM: tracks of 16, 13, 11, 9, 7, 5 steps through a MULTI-TAP echo",  v2Polymeter, true, pcExperimental, 1.4f},
     {"Chaos Breaks",    "172 BPM break; CHAOS cuts up only the snares, hats and rims",            v2ChaosBreaks, true, pcExperimental, -2.5f},
-    {"Ambient Metals",  "90 BPM: metals, mallets, strings and bells into a shimmer reverb",       v2AmbientMetals, true, pcAmbient, 13.9f},
+    {"Ambient Metals",  "90 BPM: metals, mallets, strings and bells into a shimmer reverb",       v2AmbientMetals, true, pcAmbient, 13.8f},
     {"909 Kit",         "Sample kit (909 folder): 130 BPM, 4 bars, snare roll and breakdown in a CHAIN",  preset909, true, pcBasics, 4.5f, kSmp909},
     {"808 Kit",         "Sample kit (808 folder of the library): electro groove at 104 BPM", preset808, true, pcBasics, 3.5f, kSmp808},
     {"R-8 MkII Kit",    "Sample kit (R-8 MkII folder): kick, snares, hats, toms, percussion", presetR8, true, pcBasics, 4.5f, kSmpR8},

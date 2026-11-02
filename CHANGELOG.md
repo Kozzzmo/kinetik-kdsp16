@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.20.1
+
+- **SHIMMER reverb rebuilt.** The octave-up sound now lives inside the reverb's own feedback, crossfaded with the normal tail instead of added on top: no more build-up and crackle when MOD goes past the middle, the reverb keeps the colour of what you send it, and MOD really brings in the shimmering octave above (finer, wider, a little detuned between lines). The Ambient Metals preset was revoiced for it.
+
 ## 0.20.0
 
 - **New factory presets.** The whole set was rewritten: 24 grooves (techno, house, breaks, hip-hop, electro, experimental,

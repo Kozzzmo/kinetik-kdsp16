@@ -710,7 +710,8 @@ static void v2AmbientMetals(PB& b)
     q.lfo(4, 0, 0, 70, 1, 0, tpCUTOFF); q.lfo(1, 0, 3, 40, 1, 0, tpPAN); q.lfo(2, 0, 4, 40, 1, 0, tpPAN);
     q.send(0, 70, 80); q.send(1, 70, 70, 60); q.send(2, 60, 80, 50); q.send(3, 80, 80); q.send(4, 30, 60); q.send(5, 0, 40);
     b.g(gCHO_MODEL, 50); b.g(gCHO_LEV, 60);
-    q.echo(etv4, 70, emvDiffuse, 80, 70); q.verb(110, 60, rmvShimmer, 60, 80, 40);
+    q.echo(etv4, 70, emvDiffuse, 80, 70); q.verb(110, 40, rmvShimmer, 60, 110, 40);
+    q.comp(80, 30); b.g(gCMP_ATK, 50); b.g(gCMP_REL, 40);   // glue
     b.g(gTEMPO, 90);
     q.vol({{0, 66}, {1, 70}, {2, 66}, {3, 58}, {4, 50}, {5, 90}});
     q.mix({-7.1f, -4.0f, -4.2f, 1.6f, 2.9f, 9.3f});
