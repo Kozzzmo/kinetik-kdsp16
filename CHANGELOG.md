@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.1
+
+- The sequencer has its square steps again. It now sits just above the bottom bar, and the space it freed goes to the panels above: a taller display (waveform, filter, LFO and track graphics), more room between the two rows of effect knobs.
+
 ## 0.21.0
 
 - **Same layout as the other Kinetik plug-ins.** One window size (1180 x 800) and a common bottom bar at the same place in every plug-in: REC / CLICK, RANDOM (a menu), FILL (HOLD), UNDO (shows what it undoes), the plug-in's own buttons, PRESETS (with the preset's name) and SAVE. PAT / PLAY / BPM / SKIN keep the same spot in the header.

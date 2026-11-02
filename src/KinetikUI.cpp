@@ -376,7 +376,7 @@ protected:
     R trackBtn(int t) const { return {20.f + t * 71.25f, 66.f, 66.f, 64.f}; }
     R muteBtn(int t) const { R r = trackBtn(t); return {r.x + r.w - 28.f, r.y + r.h - 26.f, 28.f, 26.f}; } // generous hit area
     R soloBtn(int t) const { const R m = muteBtn(t); return {m.x - 26.f, m.y, 26.f, m.h}; }
-    R lcd() const { return {20.f, 146.f, 680.f, 150.f}; }
+    R lcd() const { return {20.f, 146.f, 680.f, 242.f}; }
     R machPrev() const { return {150.f, 156.f, 26.f, 26.f}; }
     R machName() const { return {178.f, 156.f, 130.f, 26.f}; }
     R machNext() const { return {310.f, 156.f, 26.f, 26.f}; }
@@ -384,30 +384,30 @@ protected:
     R libBtn() const { return {496.f, 156.f, 94.f, 24.f}; }
     bool showSmpLoad() const { return page == pgSynth && lockStep < 0 && machineOf(selTrack) == mSAMPLE; }
     R lockClear() const { return {596.f, 156.f, 94.f, 24.f}; }
-    R pageTab(int i) const { return {20.f + i * 88.f, 304.f, 85.f, 28.f}; }   // ALL button at the end of the row
+    R pageTab(int i) const { return {20.f + i * 88.f, 396.f, 85.f, 28.f}; }   // ALL button at the end of the row
     // track knobs: 8, or 9 on the SYNTH page of a kick (9th = ATTACK, a global host parameter per track)
     bool kickAttackSlot() const { const int m = machineOf(selTrack); return page == pgSynth && (m == mKICK || m == mFM_KICK || m == mPH_KICK); }
     int slots() const { return kickAttackSlot() ? 9 : 8; }
-    R knob(int k) const { const float w = 680.f / slots(); return {20.f + k * w, 340.f, w, 120.f}; }
+    R knob(int k) const { const float w = 680.f / slots(); return {20.f + k * w, 432.f, w, 120.f}; }
     R mTab(int i) const { const float w = (448.f - (kMPages - 1) * 4.f) / kMPages; return {716.f + i * (w + 4.f), 146.f, w, 28.f}; }
     // master knobs: 4 per row (8), the ECHO tab has 6 per row (12)
     int mSlots() const { return mpage == mpEcho ? 12 : 8; }
     R mKnob(int k) const
     {
-        if (mpage == mpEcho) return {718.f + (k % 6) * 74.f, 178.f + (k / 6) * 102.f, 74.f, 100.f};
-        return {720.f + (k % 4) * 110.f, 178.f + (k / 4) * 102.f, 110.f, 100.f};
+        if (mpage == mpEcho) return {718.f + (k % 6) * 74.f, 178.f + (k / 6) * 140.f, 74.f, 100.f};
+        return {720.f + (k % 4) * 110.f, 178.f + (k / 4) * 140.f, 110.f, 100.f};
     }
-    R patBtn(int i) const { return {720.f + (i % 8) * 55.f, 424.f + (i / 8) * 28.f, 51.f, 24.f}; }   // both rows inside the panel
-    R patCopy() const { return {946.f, 398.f, 68.f, 22.f}; }
-    R patPaste() const { return {1018.f, 398.f, 68.f, 22.f}; }
-    R patClear() const { return {1090.f, 398.f, 68.f, 22.f}; }
-    R patMidi() const { return {874.f, 398.f, 68.f, 22.f}; }
-    R chainBtn() const { return {808.f, 398.f, 62.f, 22.f}; }
-    R modeBtn(int i) const { return {20.f + i * 62.f, 504.f, 58.f, 26.f}; }
-    R stepPage(int i) const { return {396.f + i * 27.f, 504.f, 25.f, 26.f}; }   // 8 pages of 16 steps
-    R lenMinus() const { return {612.f, 504.f, 22.f, 26.f}; }
-    R lenBox() const { return {636.f, 504.f, 62.f, 26.f}; }
-    R lenPlus() const { return {700.f, 504.f, 22.f, 26.f}; }
+    R patBtn(int i) const { return {720.f + (i % 8) * 55.f, 516.f + (i / 8) * 28.f, 51.f, 24.f}; }   // both rows inside the panel
+    R patCopy() const { return {946.f, 490.f, 68.f, 22.f}; }
+    R patPaste() const { return {1018.f, 490.f, 68.f, 22.f}; }
+    R patClear() const { return {1090.f, 490.f, 68.f, 22.f}; }
+    R patMidi() const { return {874.f, 490.f, 68.f, 22.f}; }
+    R chainBtn() const { return {808.f, 490.f, 62.f, 22.f}; }
+    R modeBtn(int i) const { return {20.f + i * 62.f, 596.f, 58.f, 26.f}; }
+    R stepPage(int i) const { return {396.f + i * 27.f, 596.f, 25.f, 26.f}; }   // 8 pages of 16 steps
+    R lenMinus() const { return {612.f, 596.f, 22.f, 26.f}; }
+    R lenBox() const { return {636.f, 596.f, 62.f, 26.f}; }
+    R lenPlus() const { return {700.f, 596.f, 22.f, 26.f}; }
     static R fr(const kframe::Rc& c) { return {c.x, c.y, c.w, c.h}; }
     R fillBtn() const { return fr(kframe::fillBtn()); }
     // pattern settings live in the header
@@ -416,13 +416,13 @@ protected:
     R swingBox() const { return {530.f, 9.f, 78.f, 40.f}; }
     R accBox() const { return {612.f, 9.f, 80.f, 40.f}; }
     R helpBtn() const { return {340.f, 156.f, 26.f, 26.f}; }
-    R trkCopy() const { return {792.f, 504.f, 62.f, 26.f}; }
-    R trkPaste() const { return {858.f, 504.f, 62.f, 26.f}; }
-    R trkClear() const { return {924.f, 504.f, 62.f, 26.f}; }
-    R lockClrAll() const { return {990.f, 504.f, 66.f, 26.f}; }
-    R shiftL() const { return {730.f, 504.f, 26.f, 26.f}; }   // common order: modes | pages | LEN | < > | COPY PASTE CLEAR | -LOCKS
-    R shiftR() const { return {758.f, 504.f, 26.f, 26.f}; }
-    R stepBtn(int i) const { return {20.f + i * 71.25f, 544.f, 66.f, 164.f}; }
+    R trkCopy() const { return {792.f, 596.f, 62.f, 26.f}; }
+    R trkPaste() const { return {858.f, 596.f, 62.f, 26.f}; }
+    R trkClear() const { return {924.f, 596.f, 62.f, 26.f}; }
+    R lockClrAll() const { return {990.f, 596.f, 66.f, 26.f}; }
+    R shiftL() const { return {730.f, 596.f, 26.f, 26.f}; }   // common order: modes | pages | LEN | < > | COPY PASTE CLEAR | -LOCKS
+    R shiftR() const { return {758.f, 596.f, 26.f, 26.f}; }
+    R stepBtn(int i) const { return {20.f + i * 71.25f, 636.f, 66.f, 72.f}; }
     R playBtn() const { return fr(kframe::playBtn()); }
     R tempoBox() const { return fr(kframe::tempoBox()); }
     R skinBtn() const { return fr(kframe::skinBtn()); }
@@ -1288,7 +1288,7 @@ protected:
 
     void drawLcdSection()
     {
-        panelBox({14, 140, 690, 344});
+        panelBox({14, 140, 690, 436});
         const R L = lcd();
         box(L, th->lcdBg, th->radius + 1.f);
         const int m = machineOf(selTrack);
@@ -1323,7 +1323,7 @@ protected:
         }
 
         const Pattern& p = pat();
-        drawPageGraphic({30.f, 190.f, 660.f, 100.f});
+        drawPageGraphic({30.f, 190.f, 660.f, 192.f});
 
         for (int i = 0; i < kPages; ++i) button(pageTab(i), kPageNames[i], page == i, 11.5f);
         button(allBtn(), "ALL", allShown(), 11.5f);
@@ -1374,7 +1374,7 @@ protected:
 
     void drawMaster()
     {
-        panelBox({710, 140, 460, 344});
+        panelBox({710, 140, 460, 436});
         static const char* tabs[kMPages] = {"ECHO", "REVERB", "CHORUS", "CHAOS", "FILTER", "MASTER"};
         for (int i = 0; i < kMPages; ++i) button(mTab(i), tabs[i], mpage == i, 10.f);
         fxTabDots();
@@ -1389,10 +1389,10 @@ protected:
             drawKnob(mKnob(k), v / 127.f, masterName(g), masterText(g, v), false,
                      drag == dkMasterKnob && dragIndex == k, true);
         }
-        const R in{716, 394, 448, 88};
+        const R in{716, 486, 448, 88};
         box(in, th->inner, th->radius);
-        if (!patMsg.empty()) label(728, 409, patMsg.c_str(), 10.5f, th->lock, ALIGN_LEFT | ALIGN_MIDDLE);
-        else label(728, 409, "PATTERNS", 10.5f, th->logo == lgRiso ? th->text : th->dim, ALIGN_LEFT | ALIGN_MIDDLE);
+        if (!patMsg.empty()) label(728, 501, patMsg.c_str(), 10.5f, th->lock, ALIGN_LEFT | ALIGN_MIDDLE);
+        else label(728, 501, "PATTERNS", 10.5f, th->logo == lgRiso ? th->text : th->dim, ALIGN_LEFT | ALIGN_MIDDLE);
         button(patMidi(), "MIDI", false, 10.5f);
         button(chainBtn(), "CHAIN", bank->chain.active(), 10.f);
         button(patCopy(), patClip >= 0 ? "COPIED" : "COPY", false, 10.5f);
@@ -1416,7 +1416,7 @@ protected:
 
     void drawSequencer()
     {
-        panelBox({14, 494, 1152, 226});
+        panelBox({14, 586, 1152, 134});
         static const char* modes[kModes] = {"TRIG", "ACCENT", "SLIDE", "RATCH", "COND", "TIME"};
         for (int i = 0; i < kModes; ++i) button(modeBtn(i), modes[i], mode == i, 10.5f);
         Pattern& p = pat();
@@ -1469,16 +1469,16 @@ protected:
             } else box(led, inLen ? th->ledOff : Color(th->ledOff, th->bg, 0.5f), 2.f);
             if (f & sfSlide) box({led.x, r.y + 25, led.w, 3}, th->lock, 1.f);
             char nb[8]; std::snprintf(nb, sizeof(nb), "%d", s + 1);
-            number(r.cx(), r.y + r.h - 27, nb, 18.f, inLen ? th->stepText : th->faint);
-            if (s % 4 == 0) box({r.cx() - 8.f, r.y + r.h - 17.f, 16.f, 1.f}, inLen ? th->stepText : th->faint);   // beat marks under 1, 5, 9, 13
-            if (p.hasLocks(selTrack, s)) { beginPath(); circle(r.cx(), r.y + r.h - 10, 2.8f); fillColor(th->lock); fill(); }
+            number(r.cx(), r.y + 45, nb, 18.f, inLen ? th->stepText : th->faint);
+            if (s % 4 == 0) box({r.cx() - 8.f, r.y + 55.f, 16.f, 1.f}, inLen ? th->stepText : th->faint);   // beat marks under 1, 5, 9, 13
+            if (p.hasLocks(selTrack, s)) { beginPath(); circle(r.cx(), r.y + 62, 2.8f); fillColor(th->lock); fill(); }
             if (inLen && (f & sfTrig)) {
                 std::string ex;
                 char eb[16];
                 if (p.ratch[selTrack][s] > 1) { std::snprintf(eb, sizeof(eb), "x%d ", p.ratch[selTrack][s]); ex += eb; }
                 if (p.cond[selTrack][s]) { ex += kConds[p.cond[selTrack][s]].name; ex += " "; }
                 if (p.micro[selTrack][s]) { std::snprintf(eb, sizeof(eb), "%+d", p.micro[selTrack][s]); ex += eb; }
-                if (!ex.empty()) label(r.cx(), r.y + r.h - 44, ex.c_str(), 9.f, th->extra);
+                if (!ex.empty()) label(r.cx(), r.y + 63, ex.c_str(), 9.f, th->extra);
             }
         }
         drawBottomBar();
@@ -3582,7 +3582,7 @@ private:
     // keeps its own offset). Synth knobs only move the tracks that use the same machine.
     bool allLatch = false, altHeld = false, allNow = false;
     bool allShown() const { return allLatch || altHeld; }
-    R allBtn() const { return {640.f, 304.f, 58.f, 28.f}; }
+    R allBtn() const { return {640.f, 396.f, 58.f, 28.f}; }
     std::vector<uint32_t> mIdx; std::vector<float> mBase; float mBase0 = 0.f;
     // track t follows the selected track's knob pi
     bool knobTarget(int t, int pi) const

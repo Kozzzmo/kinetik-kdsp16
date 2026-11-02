@@ -359,4 +359,5 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
   first click goes to `kframe::hit` (`hRandomItem + i`). Sequencer toolbars in the family's order: pages | LEN | SPEED | < > |
   COPY PASTE CLEAR | -LOCKS | the plug-in's extras on the right.
 - Next steps agreed: the KDSP-16 preset browser everywhere, PATTERNS block, knob pages / LFO order / names, then KJNG-2.
-- KDSP-16: RANDOM items SOUND / ALL SOUNDS / SEQUENCE / PATTERN / EVERYTHING (mapping to `randomize` 0 4 1 2 3); FILL left the toolbar; step buttons 164 high (contents anchored to the bottom).
+- KDSP-16: RANDOM items SOUND / ALL SOUNDS / SEQUENCE / PATTERN / EVERYTHING (mapping to `randomize` 0 4 1 2 3); FILL left the toolbar.
+- 0.21.1 (owner: "revenir au séquenceur antérieur, carrés pas rectangles"): steps 66 x 72 again (contents at r.y + 45 / 55 / 62 / 63), sequencer panel {14, 586, 1152, 134} (toolbar y 596, steps y 636); upper panels 436 high: `lcd()` 242 high, page graphic 192 high, page tabs / ALL y 396, knobs y 432; right panel knob rows 140 apart, PATTERNS box {716, 486, 448, 88} (buttons y 490, A01.. from y 516).
