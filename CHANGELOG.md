@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.2
+
+- The waveform display of the SYNTH page no longer draws a grid behind the sound.
+
 ## 0.21.1
 
 - The sequencer has its square steps again. It now sits just above the bottom bar, and the space it freed goes to the panels above: a taller display (waveform, filter, LFO and track graphics), more room between the two rows of effect knobs.

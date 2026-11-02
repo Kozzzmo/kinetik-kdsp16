@@ -893,7 +893,7 @@ protected:
     }
     void drawHit(const R& g)
     {
-        lcdGrid(g, 8, 4);
+        // no grid behind the waveform (owner's request, 0.21.2)
         beginPath(); rect(g.x, g.cy(), g.w, 1.f); fillColor(withAlpha(th->lcdDim, 0.5f)); fill();
         if (machineOf(selTrack) == mOFF) { label(g.cx(), g.cy(), "TRACK OFF", 14.f, th->lcdDim); return; }
         if (machineOf(selTrack) == mSAMPLE && !uiSmp[selTrack]) {
