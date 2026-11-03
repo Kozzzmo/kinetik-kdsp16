@@ -362,3 +362,12 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
 - KDSP-16: RANDOM items SOUND / ALL SOUNDS / SEQUENCE / PATTERN / EVERYTHING (mapping to `randomize` 0 4 1 2 3); FILL left the toolbar.
 - 0.21.1 (owner: "revenir au séquenceur antérieur, carrés pas rectangles"): steps 66 x 72 again (contents at r.y + 45 / 55 / 62 / 63), sequencer panel {14, 586, 1152, 134} (toolbar y 596, steps y 636); upper panels 436 high: `lcd()` 242 high, page graphic 192 high, page tabs / ALL y 396, knobs y 432; right panel knob rows 140 apart, PATTERNS box {716, 486, 448, 88} (buttons y 490, A01.. from y 516).
 - 0.21.2: `drawHit` (SYNTH page waveform) draws no `lcdGrid` (owner's request); the filter and LFO graphics keep theirs.
+- 0.22.0 (owner: bigger track buttons, bigger sequencer, smaller display, right-click multi-track editing as KMSP):
+  `trackBtn` 76 high; upper panels {.., 150, .., 394}; `lcd()` {20, 156, 680, 184} (header row y 166 / text 179-180, page
+  graphic {30, 200, 660, 132}, LFO widgets +10); page tabs / ALL y 350, knobs y 388; `mTab` y 156, `mKnob` rows from 188,
+  116 apart; PATTERNS box {716, 448, 448, 88} (buttons 452, A01.. 478); sequencer panel {14, 552, 1152, 168}, toolbar
+  y 564, steps {.., 604, 66, 98} (number +60, beat mark +71, lock dot +81, extra +83).
+  Track group as KMSP-6: `trackGroup` (uint16), `grouped / inGroup / groupOthers`, `setKitGroup`, `setMachineGroup`;
+  `knobTarget` / `sendOthers` follow the group (synth knobs and kick ATTACK only with the same machine),
+  `setTrackParamOrLock` (LFO destination menu) too; right-click on another track toggles it, on the selected one =
+  audition (+ REC trig), left-click clears the group; red frames + "+n,m" in the display.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.22.0
+
+- **Edit several tracks at once** (as KMSP-6): right-click other track buttons to add them to the selected one (red
+  frames, "+3,4" next to the track number). Knobs then move every track of the group by the same amount (synth knobs
+  only on tracks with the same machine), and the machine and TRACK settings are set on all of them. Click a track to
+  end the group; right-click the selected track still plays it.
+- Taller track buttons, a smaller display and a larger sequencer block.
+
 ## 0.21.2
 
 - The waveform display of the SYNTH page no longer draws a grid behind the sound.
