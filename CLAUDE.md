@@ -371,3 +371,4 @@ User presets: `%APPDATA%\Kinetik\KDSP-16\Presets\*.kdsp` / `~/Library/Applicatio
   `knobTarget` / `sendOthers` follow the group (synth knobs and kick ATTACK only with the same machine),
   `setTrackParamOrLock` (LFO destination menu) too; right-click on another track toggles it, on the selected one =
   audition (+ REC trig), left-click clears the group; red frames + "+n,m" in the display.
+- 0.22.1 (owner: squares): `trackBtn` {20 + t * 71.85, 66, 68, 68} (fills to x 1166); steps {20 + i * 71.25, 622, 66, 66} centred in the same sequencer panel (number +42, beat mark +52, lock dot / extra +58); upper panels {.., 142, .., 402}.

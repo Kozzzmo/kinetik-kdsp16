@@ -373,7 +373,7 @@ protected:
     }
 
     // ------------------------------------------------------------------ layout
-    R trackBtn(int t) const { return {20.f + t * 71.25f, 66.f, 66.f, 76.f}; }
+    R trackBtn(int t) const { return {20.f + t * 71.85f, 66.f, 68.f, 68.f}; }
     R muteBtn(int t) const { R r = trackBtn(t); return {r.x + r.w - 28.f, r.y + r.h - 26.f, 28.f, 26.f}; } // generous hit area
     R soloBtn(int t) const { const R m = muteBtn(t); return {m.x - 26.f, m.y, 26.f, m.h}; }
     R lcd() const { return {20.f, 156.f, 680.f, 184.f}; }
@@ -422,7 +422,7 @@ protected:
     R lockClrAll() const { return {990.f, 564.f, 66.f, 26.f}; }
     R shiftL() const { return {730.f, 564.f, 26.f, 26.f}; }   // common order: modes | pages | LEN | < > | COPY PASTE CLEAR | -LOCKS
     R shiftR() const { return {758.f, 564.f, 26.f, 26.f}; }
-    R stepBtn(int i) const { return {20.f + i * 71.25f, 604.f, 66.f, 98.f}; }
+    R stepBtn(int i) const { return {20.f + i * 71.25f, 622.f, 66.f, 66.f}; }
     R playBtn() const { return fr(kframe::playBtn()); }
     R tempoBox() const { return fr(kframe::tempoBox()); }
     R skinBtn() const { return fr(kframe::skinBtn()); }
@@ -1292,7 +1292,7 @@ protected:
 
     void drawLcdSection()
     {
-        panelBox({14, 150, 690, 394});
+        panelBox({14, 142, 690, 402});
         const R L = lcd();
         box(L, th->lcdBg, th->radius + 1.f);
         const int m = machineOf(selTrack);
@@ -1384,7 +1384,7 @@ protected:
 
     void drawMaster()
     {
-        panelBox({710, 150, 460, 394});
+        panelBox({710, 142, 460, 402});
         static const char* tabs[kMPages] = {"ECHO", "REVERB", "CHORUS", "CHAOS", "FILTER", "MASTER"};
         for (int i = 0; i < kMPages; ++i) button(mTab(i), tabs[i], mpage == i, 10.f);
         fxTabDots();
@@ -1479,16 +1479,16 @@ protected:
             } else box(led, inLen ? th->ledOff : Color(th->ledOff, th->bg, 0.5f), 2.f);
             if (f & sfSlide) box({led.x, r.y + 25, led.w, 3}, th->lock, 1.f);
             char nb[8]; std::snprintf(nb, sizeof(nb), "%d", s + 1);
-            number(r.cx(), r.y + 60, nb, 18.f, inLen ? th->stepText : th->faint);
-            if (s % 4 == 0) box({r.cx() - 8.f, r.y + 71.f, 16.f, 1.f}, inLen ? th->stepText : th->faint);   // beat marks under 1, 5, 9, 13
-            if (p.hasLocks(selTrack, s)) { beginPath(); circle(r.cx(), r.y + 81, 2.8f); fillColor(th->lock); fill(); }
+            number(r.cx(), r.y + 42, nb, 18.f, inLen ? th->stepText : th->faint);
+            if (s % 4 == 0) box({r.cx() - 8.f, r.y + 52.f, 16.f, 1.f}, inLen ? th->stepText : th->faint);   // beat marks under 1, 5, 9, 13
+            if (p.hasLocks(selTrack, s)) { beginPath(); circle(r.cx(), r.y + 58, 2.8f); fillColor(th->lock); fill(); }
             if (inLen && (f & sfTrig)) {
                 std::string ex;
                 char eb[16];
                 if (p.ratch[selTrack][s] > 1) { std::snprintf(eb, sizeof(eb), "x%d ", p.ratch[selTrack][s]); ex += eb; }
                 if (p.cond[selTrack][s]) { ex += kConds[p.cond[selTrack][s]].name; ex += " "; }
                 if (p.micro[selTrack][s]) { std::snprintf(eb, sizeof(eb), "%+d", p.micro[selTrack][s]); ex += eb; }
-                if (!ex.empty()) label(r.cx(), r.y + 83, ex.c_str(), 9.f, th->extra);
+                if (!ex.empty()) label(r.cx(), r.y + 58, ex.c_str(), 9.f, th->extra);
             }
         }
         drawBottomBar();

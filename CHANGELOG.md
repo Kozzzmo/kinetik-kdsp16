@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.1
+
+- Square buttons: the track buttons (68 x 68) now fill the whole width, and the sequencer steps are square again (66 x 66) in the same, larger sequencer block.
+
 ## 0.22.0
 
 - **Edit several tracks at once** (as KMSP-6): right-click other track buttons to add them to the selected one (red
