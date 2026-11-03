@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.23.0
+
+- **RANDOM in one click.** The RANDOM button now does again what is written below it (the last choice); its arrow opens the menu to choose another.
+- **Dice**: a die in each zone gives a new random result in one click: the display (the selected track's sound, and the tracks grouped with it), the sequencer bar (its sequence), PATTERNS (the pattern) and the effect panel (the effect shown: one of its presets, a little changed).
+
 ## 0.22.1
 
 - Square buttons: the track buttons (68 x 68) now fill the whole width, and the sequencer steps are square again (66 x 66) in the same, larger sequencer block.
